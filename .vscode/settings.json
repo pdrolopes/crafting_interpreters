@@ -1,0 +1,36 @@
+{
+    "vim.leader": "<space>",
+    "vim.vimrc.enable": false,
+    "vim.highlightedyank.enable": true,
+    "vim.textwidth": 100,
+    "vim.vimrc.path": "$HOME/.config/nvim/init.vim",
+    "workbench.editor.showTabs": false,
+    "vim.normalModeKeyBindingsNonRecursive": [
+        {
+            "before": [
+              "<leader>",
+              "<leader>",
+            ],
+            "commands": [
+              {
+                "command": "workbench.action.openPreviousEditorFromHistory",
+              },
+              {
+                "command": "workbench.action.acceptSelectedQuickOpenItem",
+              }
+            ]
+          },
+          {
+            "before": [
+              "<leader>",
+              "w",
+            ],
+            "commands": [
+              {
+                "command": "workbench.action.files.save",
+              },
+            ],
+          }
+    ],
+    "rust-analyzer.cargo.allFeatures": true,
+}
