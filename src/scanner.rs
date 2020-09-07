@@ -95,9 +95,33 @@ impl Scanner {
             '\n' => {
                 self.line += 1;
             }
+            '"' => self.string(),
             x => lox::error(self.line, &format!("Unexpected character. '{}'", x)),
         };
     }
+
+    fn string(&mut self) {
+        while self.peek() != '"' && !self.is_at_end() {
+            if self.peek() == '\n' {
+                self.line += 1
+            }
+            self.advance();
+        }
+
+        // unterminated string
+        if self.is_at_end() {
+            lox::error(self.line, "Unterminated string.");
+            return;
+        }
+
+        // the closing "
+        self.advance();
+
+        let value = &self.source[self.start + 1..self.current - 1];
+
+        self.add_token(TokenType::String(value.into()));
+    }
+
     fn a_match(&mut self, expected: char) -> bool {
         // match is a rust keyword
         if self.is_at_end() {
@@ -115,7 +139,7 @@ impl Scanner {
         if self.is_at_end() {
             '\0'
         } else {
-            self.source.chars().nth(self.current).unwrap()
+            self.source.chars().nth(self.current).unwrap() //current will never pass the size of source
         }
     }
 
@@ -174,5 +198,26 @@ mod tests {
             TokenType::Eof,
         ];
         assert_eq!(token_types, expected);
+    }
+
+    #[test]
+    fn string_scan() {
+        let source = r#"
+                "a little string"
+            "#;
+
+        let mut scanner = Scanner::new(source.into());
+        scanner.scan_tokens();
+
+        let token_types: Vec<TokenType> = scanner
+            .tokens
+            .iter()
+            .map(|token| token.kind.clone())
+            .collect();
+
+        assert_eq!(
+            token_types,
+            vec![TokenType::String("a little string".into()), TokenType::Eof]
+        )
     }
 }
