@@ -5,8 +5,7 @@ use std::io::Read;
 use std::io::Write;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-// static had_error: Arc<Cell<bool> = Arc::new(Cell::new(false));
-static had_error: AtomicBool = AtomicBool::new(false);
+static HAD_ERROR: AtomicBool = AtomicBool::new(false);
 
 pub fn run_file(path: String) -> Result<(), Box<dyn Error>> {
     let mut f = File::open(path)?;
@@ -14,7 +13,7 @@ pub fn run_file(path: String) -> Result<(), Box<dyn Error>> {
     f.read_to_string(&mut buffer)?;
     run(buffer);
 
-    if had_error.load(Ordering::Relaxed) {
+    if HAD_ERROR.load(Ordering::Relaxed) {
         Err("Some error occured".into())
     } else {
         Ok(())
@@ -33,7 +32,7 @@ pub fn run_prompt() {
                     break;
                 }
                 run(input);
-                had_error.store(false, Ordering::Relaxed);
+                HAD_ERROR.store(false, Ordering::Relaxed);
             }
             Err(error) => println!("error: {}", error),
         }
@@ -51,10 +50,10 @@ pub fn run(input: String) {
     todo!();
 }
 
-pub fn error(line: u32, message: &str) {
+pub fn error(line: usize, message: &str) {
     report(line, "", message);
 }
-fn report(line: u32, location: &str, message: &str) {
+fn report(line: usize, location: &str, message: &str) {
     println!("[line {} ] Error {} : {}", line, location, message);
-    had_error.store(true, Ordering::Relaxed);
+    HAD_ERROR.store(true, Ordering::Relaxed);
 }

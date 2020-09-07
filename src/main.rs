@@ -1,10 +1,13 @@
 mod lox;
+mod scanner;
+pub mod token;
+pub mod token_type;
 use std::env;
 fn main() {
     let args = env::args();
 
     // First argument is binary name
-    match dbg!(args.len()) {
+    match args.len() {
         1 => {
             lox::run_prompt();
         }
