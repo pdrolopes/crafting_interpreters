@@ -1,3 +1,4 @@
+use super::scanner::Scanner;
 use std::error::Error;
 use std::fs::File;
 use std::io;
@@ -40,14 +41,13 @@ pub fn run_prompt() {
 }
 
 pub fn run(input: String) {
-    // Scanner scanner = new Scanner(source);
-    // List<Token> tokens = scanner.scanTokens();
+    let mut scanner = Scanner::new(input);
+    scanner.scan_tokens();
 
-    // // For now, just print the tokens.
-    // for (Token token : tokens) {
-    //   System.out.println(token);
-    // }
-    todo!();
+    scanner
+        .tokens
+        .iter()
+        .for_each(|token| println!("{}", token));
 }
 
 pub fn error(line: usize, message: &str) {

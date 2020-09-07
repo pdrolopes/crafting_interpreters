@@ -11,7 +11,7 @@ pub struct Scanner {
 }
 
 impl Scanner {
-    fn new(source: String) -> Scanner {
+    pub fn new(source: String) -> Scanner {
         Scanner {
             source,
             tokens: vec![],
@@ -96,6 +96,8 @@ impl Scanner {
                 self.line += 1;
             }
             '"' => self.string(),
+            '0'..='9' => self.number(),
+            'a'..='z' | 'A'..='Z' | '_' => self.identifier(),
             x => lox::error(self.line, &format!("Unexpected character. '{}'", x)),
         };
     }
@@ -122,6 +124,53 @@ impl Scanner {
         self.add_token(TokenType::String(value.into()));
     }
 
+    fn number(&mut self) {
+        while self.peek().is_ascii_digit() {
+            self.advance();
+        }
+
+        if self.peek() == '.' && self.peek_next().is_ascii_digit() {
+            self.advance();
+
+            while self.peek().is_ascii_digit() {
+                self.advance();
+            }
+        }
+
+        // Unwrap here is safe because digits are verified in if statements
+        let value: f64 = self.source[self.start..self.current].parse().unwrap();
+        self.add_token(TokenType::Number(value))
+    }
+
+    fn identifier(&mut self) {
+        while self.peek().is_ascii_alphanumeric() {
+            self.advance();
+        }
+
+        let identifier = &self.source[self.start..self.current];
+        let kind = match identifier {
+            "and" => TokenType::And,
+            "class" => TokenType::Class,
+            "else" => TokenType::Else,
+            "false" => TokenType::False,
+            "for" => TokenType::For,
+            "fun" => TokenType::Fun,
+            "if" => TokenType::If,
+            "nil" => TokenType::Nil,
+            "or" => TokenType::Or,
+            "print" => TokenType::Print,
+            "return" => TokenType::Return,
+            "super" => TokenType::Super,
+            "this" => TokenType::This,
+            "true" => TokenType::True,
+            "var" => TokenType::Var,
+            "while" => TokenType::While,
+            _ => TokenType::Identifier,
+        };
+
+        self.add_token(kind);
+    }
+
     fn a_match(&mut self, expected: char) -> bool {
         // match is a rust keyword
         if self.is_at_end() {
@@ -140,6 +189,14 @@ impl Scanner {
             '\0'
         } else {
             self.source.chars().nth(self.current).unwrap() //current will never pass the size of source
+        }
+    }
+
+    fn peek_next(&self) -> char {
+        if self.current + 1 >= self.source.len() {
+            '\0'
+        } else {
+            self.source.chars().nth(self.current + 1).unwrap()
         }
     }
 
@@ -201,7 +258,7 @@ mod tests {
     }
 
     #[test]
-    fn string_scan() {
+    fn string_literals() {
         let source = r#"
                 "a little string"
             "#;
@@ -218,6 +275,60 @@ mod tests {
         assert_eq!(
             token_types,
             vec![TokenType::String("a little string".into()), TokenType::Eof]
+        )
+    }
+
+    #[test]
+    fn number_literals() {
+        let source = r#"42 3.7"#;
+
+        let mut scanner = Scanner::new(source.into());
+        scanner.scan_tokens();
+
+        let token_types: Vec<TokenType> = scanner
+            .tokens
+            .iter()
+            .map(|token| token.kind.clone())
+            .collect();
+
+        assert_eq!(
+            token_types,
+            vec![
+                TokenType::Number(42.0),
+                TokenType::Number(3.7),
+                TokenType::Eof
+            ]
+        )
+    }
+
+    #[test]
+    fn identifier_literals() {
+        let source = r#"foo
+            _bar
+            THIS
+            anand
+            this
+            "#;
+
+        let mut scanner = Scanner::new(source.into());
+        scanner.scan_tokens();
+
+        let token_types: Vec<TokenType> = scanner
+            .tokens
+            .iter()
+            .map(|token| token.kind.clone())
+            .collect();
+
+        assert_eq!(
+            token_types,
+            vec![
+                TokenType::Identifier,
+                TokenType::Identifier,
+                TokenType::Identifier,
+                TokenType::Identifier,
+                TokenType::This,
+                TokenType::Eof
+            ]
         )
     }
 }
