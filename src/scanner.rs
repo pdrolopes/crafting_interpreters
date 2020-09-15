@@ -90,7 +90,8 @@ impl Scanner {
                     }
                 } else if self.a_match('*') {
                     // block comentaries
-                    while self.peek() != '*' && self.peek_next() != Some('/') && !self.is_at_end() {
+                    while (self.peek() != '*' || self.peek_next() != Some('/')) && !self.is_at_end()
+                    {
                         self.advance();
                     }
 
@@ -348,7 +349,9 @@ mod tests {
     fn block_commentaries() {
         let source = r#"/* multi
             line
-            comentary */"#;
+            comentary */
+            /****/
+            "#;
 
         let mut scanner = Scanner::new(source.into());
         scanner.scan_tokens();
