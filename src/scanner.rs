@@ -84,8 +84,20 @@ impl Scanner {
             }
             '/' => {
                 if self.a_match('/') {
+                    // Line comentaries
                     while self.peek() != '\n' && !self.is_at_end() {
                         self.advance();
+                    }
+                } else if self.a_match('*') {
+                    // block comentaries
+                    while self.peek() != '*' && self.peek_next() != Some('/') && !self.is_at_end() {
+                        self.advance();
+                    }
+
+                    // file ended without closing block comment
+                    if !(self.a_match('*') && self.a_match('/')) {
+                        lox::error(self.line, "Unterminated block comment.");
+                        return;
                     }
                 } else {
                     self.add_token(TokenType::Slash);
@@ -119,9 +131,9 @@ impl Scanner {
         // the closing "
         self.advance();
 
-        let value = &self.source[self.start + 1..self.current - 1];
+        let value: String = self.source[self.start + 1..self.current - 1].into();
 
-        self.add_token(TokenType::String(value.into()));
+        self.add_token(TokenType::String(value));
     }
 
     fn number(&mut self) {
@@ -129,7 +141,11 @@ impl Scanner {
             self.advance();
         }
 
-        if self.peek() == '.' && self.peek_next().is_ascii_digit() {
+        let is_peek_next_digit = self
+            .peek_next()
+            .map(|c| c.is_ascii_digit())
+            .unwrap_or(false);
+        if self.peek() == '.' && is_peek_next_digit {
             self.advance();
 
             while self.peek().is_ascii_digit() {
@@ -192,12 +208,8 @@ impl Scanner {
         }
     }
 
-    fn peek_next(&self) -> char {
-        if self.current + 1 >= self.source.len() {
-            '\0'
-        } else {
-            self.source.chars().nth(self.current + 1).unwrap()
-        }
+    fn peek_next(&self) -> Option<char> {
+        self.source.chars().nth(self.current + 1)
     }
 
     fn is_at_end(&self) -> bool {
@@ -330,5 +342,39 @@ mod tests {
                 TokenType::Eof
             ]
         )
+    }
+
+    #[test]
+    fn block_commentaries() {
+        let source = r#"/* multi
+            line
+            comentary */"#;
+
+        let mut scanner = Scanner::new(source.into());
+        scanner.scan_tokens();
+
+        let token_types: Vec<TokenType> = scanner
+            .tokens
+            .iter()
+            .map(|token| token.kind.clone())
+            .collect();
+
+        assert_eq!(token_types, vec![TokenType::Eof])
+    }
+
+    #[test]
+    fn block_comments_unfinished() {
+        let source = r#"/* comment without finish"#;
+
+        let mut scanner = Scanner::new(source.into());
+        scanner.scan_tokens();
+
+        let token_types: Vec<TokenType> = scanner
+            .tokens
+            .iter()
+            .map(|token| token.kind.clone())
+            .collect();
+
+        assert_eq!(token_types, vec![TokenType::Eof])
     }
 }
