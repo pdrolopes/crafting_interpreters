@@ -1,10 +1,10 @@
 use super::token_type::TokenType;
 use std::fmt;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Token {
     pub kind: TokenType,
-    lexeme: String,
+    pub lexeme: String,
     line: usize,
 }
 
