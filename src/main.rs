@@ -1,3 +1,4 @@
+pub mod ast_printer;
 mod expr;
 mod lox;
 mod scanner;
