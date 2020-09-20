@@ -1,4 +1,8 @@
+use super::ast_printer::ASTPrinter;
+use super::parser::Parser;
 use super::scanner::Scanner;
+use super::token::Token;
+use super::token_type::TokenType;
 use std::error::Error;
 use std::fs::File;
 use std::io;
@@ -43,16 +47,31 @@ pub fn run_prompt() {
 pub fn run(input: String) {
     let mut scanner = Scanner::new(input);
     scanner.scan_tokens();
+    let mut parser = Parser::new(scanner.tokens);
+    let expr = parser.parse();
 
-    scanner
-        .tokens
-        .iter()
-        .for_each(|token| println!("{}", token));
+    if let Some(expr) = expr {
+        println!("{}", ASTPrinter::print(&expr));
+    }
+
+    // if HAD_ERROR {return };
+    // scanner
+    //     .tokens
+    //     .iter()
+    //     .for_each(|token| println!("{}", token));
 }
 
 pub fn error(line: usize, message: &str) {
     report(line, "", message);
 }
+
+pub fn error_token(token: Token, message: &str) {
+    match token.kind {
+        TokenType::Eof => report(token.line, "at end", message),
+        _ => report(token.line, &format!(" at '{}'", token.lexeme), message),
+    }
+}
+
 fn report(line: usize, location: &str, message: &str) {
     println!("[line {} ] Error {} : {}", line, location, message);
     HAD_ERROR.store(true, Ordering::Relaxed);

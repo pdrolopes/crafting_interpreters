@@ -2,10 +2,11 @@ use super::expr::{Expr, Visitor};
 use super::token::Token;
 use super::token_type::TokenType;
 
-struct ASTPrinter {}
+pub struct ASTPrinter {}
 impl ASTPrinter {
-    fn print(&self, expr: &Expr) -> String {
-        expr.accept(self)
+    pub fn print(expr: &Expr) -> String {
+        let printer = ASTPrinter {};
+        expr.accept(&printer)
     }
     fn parenthesize(&self, name: &str, exprs: &[&Expr]) -> String {
         let mut builder = format!("({}", name);
@@ -30,12 +31,21 @@ impl Visitor<String> for ASTPrinter {
     fn visit_unary_expr(&self, token: &Token, expr: &Expr) -> String {
         self.parenthesize(&token.lexeme, &[expr])
     }
-    fn visit_literal_expr(&self, token: &Token) -> String {
-        match &token.kind {
-            TokenType::String(value) => value.into(),
-            TokenType::Number(value) => value.to_string(),
-            _ => "nil".into(),
-        }
+
+    fn visit_literal_expr_number(&self, value: f64) -> String {
+        value.to_string()
+    }
+
+    fn visit_literal_expr_string(&self, value: &str) -> String {
+        value.into()
+    }
+
+    fn visit_literal_expr_boolean(&self, value: bool) -> String {
+        value.to_string()
+    }
+
+    fn visit_literal_expr_nil(&self) -> String {
+        "nil".into()
     }
 }
 
@@ -68,12 +78,20 @@ impl Visitor<String> for RPNPrinter {
     fn visit_unary_expr(&self, token: &Token, expr: &Expr) -> String {
         self.parenthesize(&token.lexeme, &[expr])
     }
-    fn visit_literal_expr(&self, token: &Token) -> String {
-        match &token.kind {
-            TokenType::String(value) => value.into(),
-            TokenType::Number(value) => value.to_string(),
-            _ => "nil".into(),
-        }
+    fn visit_literal_expr_number(&self, value: f64) -> String {
+        value.to_string()
+    }
+
+    fn visit_literal_expr_string(&self, value: &str) -> String {
+        value.into()
+    }
+
+    fn visit_literal_expr_boolean(&self, value: bool) -> String {
+        value.to_string()
+    }
+
+    fn visit_literal_expr_nil(&self) -> String {
+        "nil".into()
     }
 }
 
@@ -84,51 +102,27 @@ mod test {
     #[test]
     fn test_expr_parser() {
         let expr = Expr::Binary(
-            Box::new(Expr::Literal(Token::new(
-                TokenType::Number(1.0),
-                "1".into(),
-                0,
-            ))),
+            Box::new(Expr::Number(1.0)),
             Token::new(TokenType::Plus, "+".into(), 0),
-            Box::new(Expr::Literal(Token::new(
-                TokenType::Number(2.0),
-                "1".into(),
-                0,
-            ))),
+            Box::new(Expr::Number(2.0)),
         );
 
-        let output = ASTPrinter {}.print(&expr);
+        let output = ASTPrinter::print(&expr);
         assert_eq!(output, "(+ 1 2)");
     }
 
     #[test]
     fn test_other_expr_parser() {
         let plus = Expr::Binary(
-            Box::new(Expr::Literal(Token::new(
-                TokenType::Number(1.0),
-                "1".into(),
-                0,
-            ))),
+            Box::new(Expr::Number(1.0)),
             Token::new(TokenType::Plus, "+".into(), 0),
-            Box::new(Expr::Literal(Token::new(
-                TokenType::Number(2.0),
-                "2".into(),
-                0,
-            ))),
+            Box::new(Expr::Number(2.0)),
         );
 
         let minus = Expr::Binary(
-            Box::new(Expr::Literal(Token::new(
-                TokenType::Number(4.0),
-                "4".into(),
-                0,
-            ))),
+            Box::new(Expr::Number(4.0)),
             Token::new(TokenType::Minus, "-".into(), 0),
-            Box::new(Expr::Literal(Token::new(
-                TokenType::Number(3.0),
-                "3".into(),
-                0,
-            ))),
+            Box::new(Expr::Number(3.0)),
         );
 
         let mul = Expr::Binary(

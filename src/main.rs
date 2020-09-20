@@ -1,9 +1,12 @@
 pub mod ast_printer;
+pub mod error;
 mod expr;
 mod lox;
+pub mod parser;
 mod scanner;
 pub mod token;
 pub mod token_type;
+
 use std::env;
 fn main() {
     let args = env::args();

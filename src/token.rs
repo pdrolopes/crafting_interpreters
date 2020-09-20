@@ -5,7 +5,7 @@ use std::fmt;
 pub struct Token {
     pub kind: TokenType,
     pub lexeme: String,
-    line: usize,
+    pub line: usize,
 }
 
 impl Token {
