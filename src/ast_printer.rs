@@ -1,6 +1,5 @@
 use super::expr::{Expr, Visitor};
 use super::token::Token;
-use super::token_type::TokenType;
 
 pub struct ASTPrinter {}
 impl ASTPrinter {
@@ -46,6 +45,15 @@ impl Visitor<String> for ASTPrinter {
 
     fn visit_literal_expr_nil(&self) -> String {
         "nil".into()
+    }
+
+    fn visit_conditional_expr(
+        &self,
+        cond: &Expr,
+        then_branch: &Expr,
+        else_branch: &Expr,
+    ) -> String {
+        self.parenthesize("Cond", &[cond, then_branch, else_branch])
     }
 }
 
@@ -93,11 +101,21 @@ impl Visitor<String> for RPNPrinter {
     fn visit_literal_expr_nil(&self) -> String {
         "nil".into()
     }
+
+    fn visit_conditional_expr(
+        &self,
+        cond: &Expr,
+        then_branch: &Expr,
+        else_branch: &Expr,
+    ) -> String {
+        todo!()
+    }
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::token_type::TokenType;
 
     #[test]
     fn test_expr_parser() {

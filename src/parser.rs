@@ -23,7 +23,31 @@ impl<'a> Parser<'a> {
     }
 
     fn expression(&mut self) -> Result<Expr> {
-        self.equality()
+        self.conditional()
+    }
+
+    fn conditional(&mut self) -> Result<Expr> {
+        let expr = self.equality()?;
+
+        let kind = self.tokens_iter.peek().map(|t| &t.kind);
+
+        if let Some(TokenType::Question) = kind {
+            self.tokens_iter.next().unwrap();
+            let then_branch = self.expression()?;
+            self.consume(
+                TokenType::Colon,
+                "Expect ':' after then branch of conditional expression",
+            )?;
+            let else_branch = self.conditional()?;
+
+            Ok(Expr::Conditional(
+                Box::new(expr),
+                Box::new(then_branch),
+                Box::new(else_branch),
+            ))
+        } else {
+            Ok(expr)
+        }
     }
 
     fn equality(&mut self) -> Result<Expr> {
@@ -139,7 +163,7 @@ impl<'a> Parser<'a> {
                 return Ok(*self.tokens_iter.next().unwrap());
             }
 
-            let err = error((**token).clone(), error_message); // ** OH MY GOD
+            let err = error((**token).clone(), error_message);
             return Err(err);
         }
 

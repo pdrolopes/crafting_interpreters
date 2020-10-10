@@ -48,19 +48,13 @@ pub fn run(input: String) {
     let mut scanner = Scanner::new(input);
     scanner.scan_tokens();
     // rust vec to ref slice of ref HORRIBLE
-    let temp = scanner.tokens.iter().collect::<Vec<_>>();
+    let temp: Vec<_> = scanner.tokens.iter().collect();
     let mut parser = Parser::new(&temp);
     let expr = parser.parse();
 
     if let Some(expr) = expr {
         println!("{}", ASTPrinter::print(&expr));
     }
-
-    // if HAD_ERROR {return };
-    // scanner
-    //     .tokens
-    //     .iter()
-    //     .for_each(|token| println!("{}", token));
 }
 
 pub fn error(line: usize, message: &str) {
