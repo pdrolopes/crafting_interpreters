@@ -47,7 +47,9 @@ pub fn run_prompt() {
 pub fn run(input: String) {
     let mut scanner = Scanner::new(input);
     scanner.scan_tokens();
-    let mut parser = Parser::new(scanner.tokens);
+    // rust vec to ref slice of ref HORRIBLE
+    let temp = scanner.tokens.iter().collect::<Vec<_>>();
+    let mut parser = Parser::new(&temp);
     let expr = parser.parse();
 
     if let Some(expr) = expr {

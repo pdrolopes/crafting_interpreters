@@ -4,15 +4,18 @@ use super::expr::Expr;
 use super::lox;
 use super::token::Token;
 use super::token_type::TokenType;
+use std::iter::Peekable;
+use std::slice::Iter;
 
-pub struct Parser {
-    tokens: Vec<Token>,
-    current: usize,
+pub struct Parser<'a> {
+    tokens_iter: Peekable<Iter<'a, &'a Token>>,
 }
 
-impl Parser {
-    pub fn new(tokens: Vec<Token>) -> Self {
-        Self { tokens, current: 0 }
+impl<'a> Parser<'a> {
+    pub fn new(tokens: &'a [&'a Token]) -> Self {
+        Self {
+            tokens_iter: tokens.iter().peekable(),
+        }
     }
 
     pub fn parse(&mut self) -> Option<Expr> {
@@ -26,10 +29,16 @@ impl Parser {
     fn equality(&mut self) -> Result<Expr> {
         let mut expr = self.comparison()?;
 
-        while self.a_match(&[TokenType::BangEqual, TokenType::EqualEqual]) {
-            let operator = self.previous().clone();
-            let right = self.comparison()?;
-            expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
+        loop {
+            let kind = self.tokens_iter.peek().map(|t| &t.kind);
+            match kind {
+                Some(TokenType::BangEqual) | Some(TokenType::EqualEqual) => {
+                    let operator = *self.tokens_iter.next().unwrap(); // Can unwrap safely because of peek
+                    let right = self.comparison()?;
+                    expr = Expr::Binary(Box::new(expr), operator.clone(), Box::new(right));
+                }
+                _ => break,
+            }
         }
         Ok(expr)
     }
@@ -37,15 +46,19 @@ impl Parser {
     fn comparison(&mut self) -> Result<Expr> {
         let mut expr = self.addition()?;
 
-        while self.a_match(&[
-            TokenType::Greater,
-            TokenType::GreaterEqual,
-            TokenType::Less,
-            TokenType::LessEqual,
-        ]) {
-            let operator = self.previous().clone();
-            let right = self.addition()?;
-            expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
+        loop {
+            let kind = self.tokens_iter.peek().map(|t| &t.kind);
+            match kind {
+                Some(TokenType::Greater)
+                | Some(TokenType::GreaterEqual)
+                | Some(TokenType::Less)
+                | Some(TokenType::LessEqual) => {
+                    let operator = *self.tokens_iter.next().unwrap();
+                    let right = self.addition()?;
+                    expr = Expr::Binary(Box::new(expr), operator.clone(), Box::new(right));
+                }
+                _ => break,
+            }
         }
         Ok(expr)
     }
@@ -53,10 +66,16 @@ impl Parser {
     fn addition(&mut self) -> Result<Expr> {
         let mut expr = self.multiplication()?;
 
-        while self.a_match(&[TokenType::Plus, TokenType::Minus]) {
-            let operator = self.previous().clone();
-            let right = self.multiplication()?;
-            expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
+        loop {
+            let kind = self.tokens_iter.peek().map(|t| &t.kind);
+            match kind {
+                Some(TokenType::Plus) | Some(TokenType::Minus) => {
+                    let operator = *self.tokens_iter.next().unwrap();
+                    let right = self.multiplication()?;
+                    expr = Expr::Binary(Box::new(expr), operator.clone(), Box::new(right));
+                }
+                _ => break,
+            }
         }
         Ok(expr)
     }
@@ -64,97 +83,94 @@ impl Parser {
     fn multiplication(&mut self) -> Result<Expr> {
         let mut expr = self.unary()?;
 
-        while self.a_match(&[TokenType::Slash, TokenType::Star]) {
-            let operator = self.previous().clone();
-            let right = self.unary()?;
-            expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
+        loop {
+            let kind = self.tokens_iter.peek().map(|t| &t.kind);
+            match kind {
+                Some(TokenType::Slash) | Some(TokenType::Star) => {
+                    let operator = *self.tokens_iter.next().unwrap();
+                    let right = self.unary()?;
+                    expr = Expr::Binary(Box::new(expr), operator.clone(), Box::new(right));
+                }
+                _ => break,
+            }
         }
         Ok(expr)
     }
 
     fn unary(&mut self) -> Result<Expr> {
-        if self.a_match(&[TokenType::Bang, TokenType::Minus]) {
-            let operator = self.previous().clone();
+        let kind = self.tokens_iter.peek().map(|t| &t.kind);
+        let matches = match kind {
+            Some(TokenType::Bang) | Some(TokenType::Minus) => true,
+            _ => false,
+        };
+
+        if matches {
+            let operator = *self.tokens_iter.next().unwrap(); // safe unwrap
             let right = self.unary()?;
-            Ok(Expr::Unary(operator, Box::new(right)))
+            Ok(Expr::Unary(operator.clone(), Box::new(right)))
         } else {
             self.primary()
         }
     }
 
     fn primary(&mut self) -> Result<Expr> {
-        if self.a_match(&[TokenType::False]) {
-            return Ok(Expr::Boolean(false));
+        match self.tokens_iter.next() {
+            Some(token) => match &token.kind {
+                TokenType::False => Ok(Expr::Boolean(false)),
+                TokenType::True => Ok(Expr::Boolean(true)),
+                TokenType::Nil => Ok(Expr::Nil),
+                TokenType::Number(value) => Ok(Expr::Number(*value)),
+                TokenType::String(value) => Ok(Expr::String(value.to_string())),
+                TokenType::LeftParen => {
+                    let expr = self.expression()?;
+                    self.consume(TokenType::RightParen, "Expect ')' after expression")?;
+                    Ok(Expr::Grouping(Box::new(expr)))
+                }
+                _ => Err(error((*token).clone(), "expected expression")),
+            },
+            None => todo!(),
         }
-
-        if self.a_match(&[TokenType::True]) {
-            return Ok(Expr::Boolean(true));
-        }
-
-        if self.a_match(&[TokenType::Nil]) {
-            return Ok(Expr::Nil);
-        }
-
-        // if self.a_match(&[TokenType::Number, TokenType::String]) {}
-
-        if self.a_match(&[TokenType::LeftParen]) {
-            let expr = self.expression()?;
-            self.consume(TokenType::RightParen, "Expect ')' after expression")?;
-            return Ok(Expr::Grouping(Box::new(expr)));
-        }
-
-        Err(self.error(self.peek().clone(), "expected expression"))
     }
 
     // --- helper functions ---
-    fn a_match(&mut self, token_types: &[TokenType]) -> bool {
-        for kind in token_types {
-            if self.check(kind) {
-                self.advance();
-                return true;
+    fn consume(&mut self, token_type: TokenType, error_message: &str) -> error::Result<&Token> {
+        if let Some(token) = self.tokens_iter.peek() {
+            if token.kind == token_type {
+                return Ok(*self.tokens_iter.next().unwrap());
             }
+
+            let err = error((**token).clone(), error_message); // ** OH MY GOD
+            return Err(err);
         }
 
-        false
-    }
-    fn consume(&mut self, token_type: TokenType, error_message: &str) -> error::Result<Token> {
-        if self.check(&token_type) {
-            Ok(self.advance().clone())
-        } else {
-            Err(self.error(self.peek().clone(), error_message))
-        }
+        todo!()
     }
 
-    fn check(&self, token_type: &TokenType) -> bool {
-        if self.is_at_end() {
-            false
-        } else {
-            &self.peek().kind == token_type
-        }
-    }
+    // private void synchronize() {
+    //     advance();
 
-    fn advance(&mut self) -> &Token {
-        if !self.is_at_end() {
-            self.current += 1
-        }
-        self.previous()
-    }
+    //     while (!isAtEnd()) {
+    //       if (previous().type == SEMICOLON) return;
 
-    fn is_at_end(&self) -> bool {
-        self.peek().kind == TokenType::Eof
-    }
+    //       switch (peek().type) {
+    //         case CLASS:
+    //         case FUN:
+    //         case VAR:
+    //         case FOR:
+    //         case IF:
+    //         case WHILE:
+    //         case PRINT:
+    //         case RETURN:
+    //           return;
+    //       }
 
-    fn peek(&self) -> &Token {
-        &self.tokens[self.current]
-    }
+    //       advance();
+    //     }
+    //   }
+}
 
-    fn previous(&mut self) -> &Token {
-        &self.tokens[self.current - 1]
-    }
-
-    fn error(&self, token: Token, message: &str) -> error::LoxError {
-        let line = token.line;
-        lox::error_token(token, message);
-        error::LoxError::ParserError(line, message.to_string())
-    }
+fn error(token: Token, message: &str) -> error::LoxError {
+    let line = token.line;
+    lox::error_token(token, message);
+    error::LoxError::ParserError(line, message.to_string())
 }
