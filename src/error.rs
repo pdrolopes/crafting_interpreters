@@ -1,7 +1,10 @@
+use crate::token::Token;
 use std::fmt::Display;
+
 #[derive(Debug, PartialEq)]
 pub enum LoxError {
     ParserError(usize, String),
+    RuntimeError(Token, String),
 }
 
 impl Display for LoxError {
@@ -9,6 +12,9 @@ impl Display for LoxError {
         match self {
             LoxError::ParserError(line, reason) => {
                 write!(f, "Parser error in line {}: {}", line, reason)
+            }
+            LoxError::RuntimeError(token, message) => {
+                write!(f, "Runtime error: {} \n [line {}]", message, token.line)
             }
         }
     }

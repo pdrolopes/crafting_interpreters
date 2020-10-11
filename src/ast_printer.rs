@@ -1,7 +1,8 @@
 use super::expr::{Expr, Visitor};
 use super::token::Token;
 
-pub struct ASTPrinter {}
+pub struct ASTPrinter;
+
 impl ASTPrinter {
     pub fn print(expr: &Expr) -> String {
         let printer = ASTPrinter {};

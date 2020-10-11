@@ -1,7 +1,9 @@
 pub mod ast_printer;
 pub mod error;
 mod expr;
+mod interpreter;
 mod lox;
+mod object;
 pub mod parser;
 mod scanner;
 pub mod token;

@@ -1,7 +1,7 @@
 use super::token_type::TokenType;
 use std::fmt;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Token {
     pub kind: TokenType,
     pub lexeme: String,

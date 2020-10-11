@@ -18,8 +18,8 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub fn parse(&mut self) -> Option<Expr> {
-        self.expression().ok()
+    pub fn parse(&mut self) -> Result<Expr> {
+        self.expression()
     }
 
     fn expression(&mut self) -> Result<Expr> {

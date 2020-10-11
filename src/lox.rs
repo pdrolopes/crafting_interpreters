@@ -1,4 +1,5 @@
 use super::ast_printer::ASTPrinter;
+use super::interpreter;
 use super::parser::Parser;
 use super::scanner::Scanner;
 use super::token::Token;
@@ -11,6 +12,7 @@ use std::io::Write;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 static HAD_ERROR: AtomicBool = AtomicBool::new(false);
+static HAD_RUNTIME_ERROR: AtomicBool = AtomicBool::new(false);
 
 pub fn run_file(path: String) -> Result<(), Box<dyn Error>> {
     let mut f = File::open(path)?;
@@ -50,11 +52,22 @@ pub fn run(input: String) {
     // rust vec to ref slice of ref HORRIBLE
     let temp: Vec<_> = scanner.tokens.iter().collect();
     let mut parser = Parser::new(&temp);
-    let expr = parser.parse();
+    // let expr = parser.parse();
 
-    if let Some(expr) = expr {
-        println!("{}", ASTPrinter::print(&expr));
-    }
+    let expr = match parser.parse() {
+        Ok(x) => x,
+        Err(err) => {
+            println!("{}", err);
+            return;
+        }
+    };
+
+    match interpreter::interpret(&expr) {
+        Ok(x) => println!("{}", x),
+        Err(err) => println!("{}", err),
+    };
+
+    // println!("{}", ASTPrinter::print(&expr));
 }
 
 pub fn error(line: usize, message: &str) {
