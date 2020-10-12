@@ -1,4 +1,7 @@
+#![feature(peekable_next_if)]
+
 pub mod ast_printer;
+mod environment;
 pub mod error;
 mod expr;
 mod interpreter;
@@ -6,6 +9,7 @@ mod lox;
 mod object;
 pub mod parser;
 mod scanner;
+mod stmt;
 pub mod token;
 pub mod token_type;
 

@@ -6,6 +6,9 @@ pub enum Expr {
     Unary(Token, Box<Expr>),
     Conditional(Box<Expr>, Box<Expr>, Box<Expr>), // conditional - then - else,
 
+    // Variable values
+    Variable(Token),
+
     // Literal values
     Number(f64),
     String(String),
@@ -30,6 +33,7 @@ impl Expr {
             Expr::String(x) => visitor.visit_literal_expr_string(x),
             Expr::Boolean(x) => visitor.visit_literal_expr_boolean(*x),
             Expr::Nil => visitor.visit_literal_expr_nil(),
+            Expr::Variable(token) => visitor.visit_variable_expr(token),
         }
     }
 }
@@ -43,4 +47,5 @@ pub trait Visitor<T> {
     fn visit_literal_expr_string(&self, value: &str) -> T;
     fn visit_literal_expr_boolean(&self, value: bool) -> T;
     fn visit_literal_expr_nil(&self) -> T;
+    fn visit_variable_expr(&self, token: &Token) -> T;
 }

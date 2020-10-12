@@ -1,20 +1,41 @@
 use super::expr::{Expr, Visitor};
+use super::stmt;
+use super::stmt::Stmt;
+use crate::environment::Environment;
 use crate::error::{LoxError, Result};
+use crate::lox;
 use crate::object::Object;
 use crate::token::Token;
 use crate::token_type::TokenType;
 
-struct Interpreter;
-
-pub fn interpret(expr: &Expr) -> Result<Object> {
-    Interpreter {}.evaluate(expr)
+pub struct Interpreter {
+    environment: Environment,
 }
 
 impl Interpreter {
+    pub fn new() -> Self {
+        Interpreter {
+            environment: Environment::new(),
+        }
+    }
+
+    pub fn interpret(&mut self, statements: &[Stmt]) {
+        for stmt in statements {
+            self.execute(stmt).unwrap_or_else(|err| {
+                lox::report_runtime(err);
+                return;
+            });
+        }
+    }
     fn evaluate(&self, expr: &Expr) -> Result<Object> {
         expr.accept(self)
     }
+
+    fn execute(&mut self, stmt: &Stmt) -> Result<()> {
+        stmt.accept(self)
+    }
 }
+
 fn is_truphy(object: Object) -> bool {
     match object {
         Object::Boolean(x) => x,
@@ -164,5 +185,36 @@ impl Visitor<Result<Object>> for Interpreter {
 
     fn visit_literal_expr_nil(&self) -> Result<Object> {
         Ok(Object::Nil)
+    }
+
+    fn visit_variable_expr(&self, token: &Token) -> Result<Object> {
+        self.environment.get(token).map(|object| object.clone())
+    }
+}
+
+impl stmt::Visitor<Result<()>> for Interpreter {
+    fn visit_block_stmt(&mut self, statements: &[stmt::Stmt]) -> Result<()> {
+        todo!()
+    }
+
+    fn visit_expression_stmt(&mut self, expr: &Expr) -> Result<()> {
+        self.evaluate(expr)?;
+
+        Ok(())
+    }
+
+    fn visit_print_stmt(&mut self, expr: &Expr) -> Result<()> {
+        let value = self.evaluate(expr)?;
+
+        println!("{}", value);
+        Ok(())
+    }
+
+    fn visit_var_stmt(&mut self, token: &Token, expr: &Expr) -> Result<()> {
+        let value = self.evaluate(expr)?;
+
+        self.environment.define(token.lexeme.clone(), value);
+
+        Ok(())
     }
 }

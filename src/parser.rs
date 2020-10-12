@@ -4,22 +4,102 @@ use super::expr::Expr;
 use super::lox;
 use super::token::Token;
 use super::token_type::TokenType;
+use crate::stmt::Stmt;
 use std::iter::Peekable;
 use std::slice::Iter;
 
 pub struct Parser<'a> {
-    tokens_iter: Peekable<Iter<'a, &'a Token>>,
+    tokens_iter: Peekable<Iter<'a, Token>>,
 }
 
 impl<'a> Parser<'a> {
-    pub fn new(tokens: &'a [&'a Token]) -> Self {
+    pub fn new(tokens: &'a [Token]) -> Self {
         Self {
             tokens_iter: tokens.iter().peekable(),
         }
     }
 
-    pub fn parse(&mut self) -> Result<Expr> {
-        self.expression()
+    pub fn parse(&mut self) -> Vec<Result<Stmt>> {
+        let mut parsed_list = Vec::new();
+
+        while let Some(token) = self.tokens_iter.peek() {
+            if token.kind == TokenType::Eof {
+                break;
+            }
+
+            // if let Some(stmt) = self.declaration() {
+            //     stmt_list.push(stmt);
+            // }
+            parsed_list.push(self.declaration());
+        }
+
+        parsed_list
+    }
+
+    fn declaration(&mut self) -> Result<Stmt> {
+        let result = if self
+            .tokens_iter
+            .next_if(|token| token.kind == TokenType::Var)
+            .is_some()
+        {
+            self.var_declaration()
+        } else {
+            self.statement()
+        };
+
+        match result {
+            Err(err) => {
+                self.synchronize(); // walk until ;
+                Err(err)
+            }
+            x => x,
+        }
+    }
+
+    fn var_declaration(&mut self) -> Result<Stmt> {
+        let name = self
+            .consume(TokenType::Identifier, "Expect variable name")?
+            .clone();
+
+        let mut initializer = Expr::Nil;
+        if self
+            .tokens_iter
+            .next_if(|t| t.kind == TokenType::Equal)
+            .is_some()
+        {
+            initializer = self.expression()?;
+        }
+
+        self.consume(TokenType::Semicolon, "Expect ; after variable declaration")?;
+
+        Ok(Stmt::Var(name, initializer))
+    }
+
+    fn statement(&mut self) -> Result<Stmt> {
+        if self
+            .tokens_iter
+            .next_if(|t| t.kind == TokenType::Print)
+            .is_some()
+        {
+            return self.print_stmt();
+        }
+
+        self.expr_stmt()
+    }
+
+    fn expr_stmt(&mut self) -> Result<Stmt> {
+        let expr = self.expression()?;
+        self.consume(TokenType::Semicolon, "Expected ; after expression")?;
+
+        Ok(Stmt::Expression(expr))
+    }
+
+    fn print_stmt(&mut self) -> Result<Stmt> {
+        let expr = self.expression()?;
+
+        self.consume(TokenType::Semicolon, "Expected ; after value")?;
+
+        Ok(Stmt::Print(expr))
     }
 
     fn expression(&mut self) -> Result<Expr> {
@@ -57,7 +137,7 @@ impl<'a> Parser<'a> {
             let kind = self.tokens_iter.peek().map(|t| &t.kind);
             match kind {
                 Some(TokenType::BangEqual) | Some(TokenType::EqualEqual) => {
-                    let operator = *self.tokens_iter.next().unwrap(); // Can unwrap safely because of peek
+                    let operator = self.tokens_iter.next().unwrap(); // Can unwrap safely because of peek
                     let right = self.comparison()?;
                     expr = Expr::Binary(Box::new(expr), operator.clone(), Box::new(right));
                 }
@@ -77,7 +157,7 @@ impl<'a> Parser<'a> {
                 | Some(TokenType::GreaterEqual)
                 | Some(TokenType::Less)
                 | Some(TokenType::LessEqual) => {
-                    let operator = *self.tokens_iter.next().unwrap();
+                    let operator = self.tokens_iter.next().unwrap();
                     let right = self.addition()?;
                     expr = Expr::Binary(Box::new(expr), operator.clone(), Box::new(right));
                 }
@@ -94,7 +174,7 @@ impl<'a> Parser<'a> {
             let kind = self.tokens_iter.peek().map(|t| &t.kind);
             match kind {
                 Some(TokenType::Plus) | Some(TokenType::Minus) => {
-                    let operator = *self.tokens_iter.next().unwrap();
+                    let operator = self.tokens_iter.next().unwrap();
                     let right = self.multiplication()?;
                     expr = Expr::Binary(Box::new(expr), operator.clone(), Box::new(right));
                 }
@@ -111,7 +191,7 @@ impl<'a> Parser<'a> {
             let kind = self.tokens_iter.peek().map(|t| &t.kind);
             match kind {
                 Some(TokenType::Slash) | Some(TokenType::Star) => {
-                    let operator = *self.tokens_iter.next().unwrap();
+                    let operator = self.tokens_iter.next().unwrap();
                     let right = self.unary()?;
                     expr = Expr::Binary(Box::new(expr), operator.clone(), Box::new(right));
                 }
@@ -123,13 +203,10 @@ impl<'a> Parser<'a> {
 
     fn unary(&mut self) -> Result<Expr> {
         let kind = self.tokens_iter.peek().map(|t| &t.kind);
-        let matches = match kind {
-            Some(TokenType::Bang) | Some(TokenType::Minus) => true,
-            _ => false,
-        };
+        let matches = matches!(kind, Some(TokenType::Bang) | Some(TokenType::Minus));
 
         if matches {
-            let operator = *self.tokens_iter.next().unwrap(); // safe unwrap
+            let operator = self.tokens_iter.next().unwrap(); // safe unwrap
             let right = self.unary()?;
             Ok(Expr::Unary(operator.clone(), Box::new(right)))
         } else {
@@ -145,6 +222,7 @@ impl<'a> Parser<'a> {
                 TokenType::Nil => Ok(Expr::Nil),
                 TokenType::Number(value) => Ok(Expr::Number(*value)),
                 TokenType::String(value) => Ok(Expr::String(value.to_string())),
+                TokenType::Identifier => Ok(Expr::Variable(token.clone())),
                 TokenType::LeftParen => {
                     let expr = self.expression()?;
                     self.consume(TokenType::RightParen, "Expect ')' after expression")?;
@@ -160,7 +238,7 @@ impl<'a> Parser<'a> {
     fn consume(&mut self, token_type: TokenType, error_message: &str) -> error::Result<&Token> {
         if let Some(token) = self.tokens_iter.peek() {
             if token.kind == token_type {
-                return Ok(*self.tokens_iter.next().unwrap());
+                return Ok(self.tokens_iter.next().unwrap());
             }
 
             let err = error((**token).clone(), error_message);
@@ -170,27 +248,27 @@ impl<'a> Parser<'a> {
         todo!()
     }
 
-    // private void synchronize() {
-    //     advance();
-
-    //     while (!isAtEnd()) {
-    //       if (previous().type == SEMICOLON) return;
-
-    //       switch (peek().type) {
-    //         case CLASS:
-    //         case FUN:
-    //         case VAR:
-    //         case FOR:
-    //         case IF:
-    //         case WHILE:
-    //         case PRINT:
-    //         case RETURN:
-    //           return;
-    //       }
-
-    //       advance();
-    //     }
-    //   }
+    fn synchronize(&mut self) {
+        let should_consume = |token: &'_ &Token| {
+            token.kind == TokenType::Semicolon
+                || !matches!(
+                    token.kind,
+                    TokenType::Class
+                        | TokenType::Fun
+                        | TokenType::Var
+                        | TokenType::For
+                        | TokenType::If
+                        | TokenType::While
+                        | TokenType::Print
+                        | TokenType::Return
+                )
+        };
+        while let Some(token) = self.tokens_iter.next_if(should_consume) {
+            if token.kind == TokenType::Semicolon {
+                break;
+            }
+        }
+    }
 }
 
 fn error(token: Token, message: &str) -> error::LoxError {

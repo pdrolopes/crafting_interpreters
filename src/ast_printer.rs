@@ -56,6 +56,10 @@ impl Visitor<String> for ASTPrinter {
     ) -> String {
         self.parenthesize("Cond", &[cond, then_branch, else_branch])
     }
+
+    fn visit_variable_expr(&self, token: &Token) -> String {
+        todo!()
+    }
 }
 
 // --- Reverse Polish Notation ---
@@ -109,6 +113,10 @@ impl Visitor<String> for RPNPrinter {
         then_branch: &Expr,
         else_branch: &Expr,
     ) -> String {
+        todo!()
+    }
+
+    fn visit_variable_expr(&self, token: &Token) -> String {
         todo!()
     }
 }

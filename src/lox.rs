@@ -1,9 +1,10 @@
 use super::ast_printer::ASTPrinter;
-use super::interpreter;
+use super::interpreter::Interpreter;
 use super::parser::Parser;
 use super::scanner::Scanner;
 use super::token::Token;
 use super::token_type::TokenType;
+use crate::error::LoxError;
 use std::error::Error;
 use std::fs::File;
 use std::io;
@@ -49,25 +50,23 @@ pub fn run_prompt() {
 pub fn run(input: String) {
     let mut scanner = Scanner::new(input);
     scanner.scan_tokens();
-    // rust vec to ref slice of ref HORRIBLE
-    let temp: Vec<_> = scanner.tokens.iter().collect();
-    let mut parser = Parser::new(&temp);
-    // let expr = parser.parse();
+    let mut parser = Parser::new(&scanner.tokens);
+    let parsed_result = parser.parse();
 
-    let expr = match parser.parse() {
-        Ok(x) => x,
-        Err(err) => {
-            println!("{}", err);
-            return;
-        }
-    };
+    let errs: Vec<_> = parsed_result
+        .iter()
+        .filter_map(|x| x.as_ref().err())
+        .collect();
 
-    match interpreter::interpret(&expr) {
-        Ok(x) => println!("{}", x),
-        Err(err) => println!("{}", err),
-    };
+    if !errs.is_empty() {
+        errs.iter().for_each(|err| println!("{}", err));
+        return;
+    }
 
-    // println!("{}", ASTPrinter::print(&expr));
+    let statements: Vec<_> = parsed_result.into_iter().filter_map(|x| x.ok()).collect();
+    let mut interpreter = Interpreter::new();
+
+    interpreter.interpret(&statements);
 }
 
 pub fn error(line: usize, message: &str) {
@@ -84,4 +83,9 @@ pub fn error_token(token: Token, message: &str) {
 fn report(line: usize, location: &str, message: &str) {
     println!("[line {} ] Error {} : {}", line, location, message);
     HAD_ERROR.store(true, Ordering::Relaxed);
+}
+
+pub fn report_runtime(err: LoxError) {
+    println!("{}", err);
+    HAD_RUNTIME_ERROR.store(true, Ordering::Relaxed);
 }
