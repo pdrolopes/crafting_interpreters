@@ -1,4 +1,5 @@
-use super::expr::{Expr, Visitor};
+use super::expr;
+use super::expr::Expr;
 use super::stmt;
 use super::stmt::Stmt;
 use crate::environment::Environment;
@@ -21,19 +22,17 @@ impl Interpreter {
 
     pub fn interpret(&mut self, statements: &[Stmt]) {
         for stmt in statements {
-            self.execute(stmt).unwrap_or_else(|err| {
-                lox::report_runtime(err);
-                return;
-            });
+            stmt.accept(self)
+                .unwrap_or_else(|err| lox::report_runtime(err));
         }
     }
-    fn evaluate(&self, expr: &Expr) -> Result<Object> {
+    fn evaluate(&mut self, expr: &Expr) -> Result<Object> {
         expr.accept(self)
     }
 
-    fn execute(&mut self, stmt: &Stmt) -> Result<()> {
-        stmt.accept(self)
-    }
+    // fn execute(&mut self, stmt: &Stmt) -> Result<()> {
+    //     stmt.accept(self)
+    // }
 }
 
 fn is_truphy(object: Object) -> bool {
@@ -44,8 +43,8 @@ fn is_truphy(object: Object) -> bool {
     }
 }
 
-impl Visitor<Result<Object>> for Interpreter {
-    fn visit_binary_expr(&self, left: &Expr, token: &Token, right: &Expr) -> Result<Object> {
+impl expr::Visitor<Result<Object>> for Interpreter {
+    fn visit_binary_expr(&mut self, left: &Expr, token: &Token, right: &Expr) -> Result<Object> {
         // TODO probably only evaluate right when necessary
         let left = self.evaluate(left)?;
         let right = self.evaluate(right)?;
@@ -140,11 +139,11 @@ impl Visitor<Result<Object>> for Interpreter {
         }
     }
 
-    fn visit_grouping_expr(&self, expr: &Expr) -> Result<Object> {
+    fn visit_grouping_expr(&mut self, expr: &Expr) -> Result<Object> {
         self.evaluate(expr)
     }
 
-    fn visit_unary_expr(&self, token: &Token, expr: &Expr) -> Result<Object> {
+    fn visit_unary_expr(&mut self, token: &Token, expr: &Expr) -> Result<Object> {
         let eval = self.evaluate(expr)?;
         match (&token.kind, eval) {
             (TokenType::Bang, x) => Ok(Object::Boolean(!is_truphy(x))),
@@ -158,7 +157,7 @@ impl Visitor<Result<Object>> for Interpreter {
     }
 
     fn visit_conditional_expr(
-        &self,
+        &mut self,
         cond: &Expr,
         then_branch: &Expr,
         else_branch: &Expr,
@@ -171,24 +170,31 @@ impl Visitor<Result<Object>> for Interpreter {
         }
     }
 
-    fn visit_literal_expr_number(&self, value: f64) -> Result<Object> {
+    fn visit_literal_expr_number(&mut self, value: f64) -> Result<Object> {
         Ok(Object::Number(value))
     }
 
-    fn visit_literal_expr_string(&self, value: &str) -> Result<Object> {
+    fn visit_literal_expr_string(&mut self, value: &str) -> Result<Object> {
         Ok(Object::String(value.into()))
     }
 
-    fn visit_literal_expr_boolean(&self, value: bool) -> Result<Object> {
+    fn visit_literal_expr_boolean(&mut self, value: bool) -> Result<Object> {
         Ok(Object::Boolean(value))
     }
 
-    fn visit_literal_expr_nil(&self) -> Result<Object> {
+    fn visit_literal_expr_nil(&mut self) -> Result<Object> {
         Ok(Object::Nil)
     }
 
-    fn visit_variable_expr(&self, token: &Token) -> Result<Object> {
+    fn visit_variable_expr(&mut self, token: &Token) -> Result<Object> {
         self.environment.get(token).map(|object| object.clone())
+    }
+
+    fn visit_assign_expr(&mut self, token: &Token, expr: &Expr) -> Result<Object> {
+        let object = self.evaluate(expr)?;
+        self.environment.assign(token, object.clone())?;
+
+        Ok(object)
     }
 }
 

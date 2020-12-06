@@ -18,6 +18,18 @@ impl Environment {
         self.variables.insert(key, value);
     }
 
+    pub fn assign(&mut self, token: &Token, value: Object) -> Result<()> {
+        if self.variables.contains_key(&token.lexeme) {
+            self.variables.insert(token.lexeme.clone(), value);
+            return Ok(());
+        }
+
+        Err(LoxError::RuntimeError(
+            token.clone(),
+            format!("Undefined variable, `{}`", token.lexeme),
+        ))
+    }
+
     pub fn get(&self, name: &Token) -> Result<&Object> {
         self.variables.get(&name.lexeme).ok_or_else(|| {
             LoxError::RuntimeError(

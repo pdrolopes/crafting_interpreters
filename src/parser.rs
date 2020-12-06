@@ -27,9 +27,6 @@ impl<'a> Parser<'a> {
                 break;
             }
 
-            // if let Some(stmt) = self.declaration() {
-            //     stmt_list.push(stmt);
-            // }
             parsed_list.push(self.declaration());
         }
 
@@ -103,9 +100,27 @@ impl<'a> Parser<'a> {
     }
 
     fn expression(&mut self) -> Result<Expr> {
-        self.conditional()
+        self.assignment()
     }
 
+    fn assignment(&mut self) -> Result<Expr> {
+        let expr = self.conditional()?;
+
+        if let Some(equals) = self
+            .tokens_iter
+            .next_if(|token| token.kind == TokenType::Equal)
+        {
+            let value = self.conditional()?;
+
+            if let Expr::Variable(token) = expr {
+                return Ok(Expr::Assign(token, Box::new(value)));
+            }
+
+            error(equals.clone(), "Invalid assignment target");
+        }
+
+        return Ok(expr);
+    }
     fn conditional(&mut self) -> Result<Expr> {
         let expr = self.equality()?;
 

@@ -1,10 +1,10 @@
-use super::ast_printer::ASTPrinter;
 use super::interpreter::Interpreter;
 use super::parser::Parser;
 use super::scanner::Scanner;
 use super::token::Token;
 use super::token_type::TokenType;
 use crate::error::LoxError;
+use crate::stmt::Stmt;
 use std::error::Error;
 use std::fs::File;
 use std::io;
@@ -29,6 +29,7 @@ pub fn run_file(path: String) -> Result<(), Box<dyn Error>> {
 }
 
 pub fn run_prompt() {
+    let mut interpreter = Interpreter::new();
     loop {
         let mut input = String::new();
         print!("> ");
@@ -39,7 +40,8 @@ pub fn run_prompt() {
                     // if input has only \n
                     break;
                 }
-                run(input);
+                let stmts = run(input);
+                interpreter.interpret(&stmts);
                 HAD_ERROR.store(false, Ordering::Relaxed);
             }
             Err(error) => println!("error: {}", error),
@@ -47,7 +49,7 @@ pub fn run_prompt() {
     }
 }
 
-pub fn run(input: String) {
+pub fn run(input: String) -> Vec<Stmt> {
     let mut scanner = Scanner::new(input);
     scanner.scan_tokens();
     let mut parser = Parser::new(&scanner.tokens);
@@ -60,13 +62,10 @@ pub fn run(input: String) {
 
     if !errs.is_empty() {
         errs.iter().for_each(|err| println!("{}", err));
-        return;
+        return vec![];
     }
 
-    let statements: Vec<_> = parsed_result.into_iter().filter_map(|x| x.ok()).collect();
-    let mut interpreter = Interpreter::new();
-
-    interpreter.interpret(&statements);
+    parsed_result.into_iter().filter_map(|x| x.ok()).collect()
 }
 
 pub fn error(line: usize, message: &str) {

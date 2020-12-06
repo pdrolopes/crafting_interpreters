@@ -5,10 +5,10 @@ pub struct ASTPrinter;
 
 impl ASTPrinter {
     pub fn print(expr: &Expr) -> String {
-        let printer = ASTPrinter {};
-        expr.accept(&printer)
+        let mut printer = ASTPrinter {};
+        expr.accept(&mut printer)
     }
-    fn parenthesize(&self, name: &str, exprs: &[&Expr]) -> String {
+    fn parenthesize(&mut self, name: &str, exprs: &[&Expr]) -> String {
         let mut builder = format!("({}", name);
 
         for expr in exprs {
@@ -22,34 +22,34 @@ impl ASTPrinter {
 }
 
 impl Visitor<String> for ASTPrinter {
-    fn visit_binary_expr(&self, left: &Expr, token: &Token, right: &Expr) -> String {
+    fn visit_binary_expr(&mut self, left: &Expr, token: &Token, right: &Expr) -> String {
         self.parenthesize(&token.lexeme, &[left, right])
     }
-    fn visit_grouping_expr(&self, expr: &Expr) -> String {
+    fn visit_grouping_expr(&mut self, expr: &Expr) -> String {
         self.parenthesize("Group", &[expr])
     }
-    fn visit_unary_expr(&self, token: &Token, expr: &Expr) -> String {
+    fn visit_unary_expr(&mut self, token: &Token, expr: &Expr) -> String {
         self.parenthesize(&token.lexeme, &[expr])
     }
 
-    fn visit_literal_expr_number(&self, value: f64) -> String {
+    fn visit_literal_expr_number(&mut self, value: f64) -> String {
         value.to_string()
     }
 
-    fn visit_literal_expr_string(&self, value: &str) -> String {
+    fn visit_literal_expr_string(&mut self, value: &str) -> String {
         value.into()
     }
 
-    fn visit_literal_expr_boolean(&self, value: bool) -> String {
+    fn visit_literal_expr_boolean(&mut self, value: bool) -> String {
         value.to_string()
     }
 
-    fn visit_literal_expr_nil(&self) -> String {
+    fn visit_literal_expr_nil(&mut self) -> String {
         "nil".into()
     }
 
     fn visit_conditional_expr(
-        &self,
+        &mut self,
         cond: &Expr,
         then_branch: &Expr,
         else_branch: &Expr,
@@ -57,7 +57,11 @@ impl Visitor<String> for ASTPrinter {
         self.parenthesize("Cond", &[cond, then_branch, else_branch])
     }
 
-    fn visit_variable_expr(&self, token: &Token) -> String {
+    fn visit_variable_expr(&mut self, token: &Token) -> String {
+        todo!()
+    }
+
+    fn visit_assign_expr(&mut self, token: &Token, expr: &Expr) -> String {
         todo!()
     }
 }
@@ -65,10 +69,10 @@ impl Visitor<String> for ASTPrinter {
 // --- Reverse Polish Notation ---
 struct RPNPrinter {}
 impl RPNPrinter {
-    fn print(&self, expr: &Expr) -> String {
+    fn print(&mut self, expr: &Expr) -> String {
         expr.accept(self)
     }
-    fn parenthesize(&self, name: &str, exprs: &[&Expr]) -> String {
+    fn parenthesize(&mut self, name: &str, exprs: &[&Expr]) -> String {
         let mut builder = String::new();
 
         for expr in exprs {
@@ -82,33 +86,33 @@ impl RPNPrinter {
 }
 
 impl Visitor<String> for RPNPrinter {
-    fn visit_binary_expr(&self, left: &Expr, token: &Token, right: &Expr) -> String {
+    fn visit_binary_expr(&mut self, left: &Expr, token: &Token, right: &Expr) -> String {
         self.parenthesize(&token.lexeme, &[left, right])
     }
-    fn visit_grouping_expr(&self, expr: &Expr) -> String {
+    fn visit_grouping_expr(&mut self, expr: &Expr) -> String {
         self.parenthesize("Group", &[expr])
     }
-    fn visit_unary_expr(&self, token: &Token, expr: &Expr) -> String {
+    fn visit_unary_expr(&mut self, token: &Token, expr: &Expr) -> String {
         self.parenthesize(&token.lexeme, &[expr])
     }
-    fn visit_literal_expr_number(&self, value: f64) -> String {
+    fn visit_literal_expr_number(&mut self, value: f64) -> String {
         value.to_string()
     }
 
-    fn visit_literal_expr_string(&self, value: &str) -> String {
+    fn visit_literal_expr_string(&mut self, value: &str) -> String {
         value.into()
     }
 
-    fn visit_literal_expr_boolean(&self, value: bool) -> String {
+    fn visit_literal_expr_boolean(&mut self, value: bool) -> String {
         value.to_string()
     }
 
-    fn visit_literal_expr_nil(&self) -> String {
+    fn visit_literal_expr_nil(&mut self) -> String {
         "nil".into()
     }
 
     fn visit_conditional_expr(
-        &self,
+        &mut self,
         cond: &Expr,
         then_branch: &Expr,
         else_branch: &Expr,
@@ -116,7 +120,11 @@ impl Visitor<String> for RPNPrinter {
         todo!()
     }
 
-    fn visit_variable_expr(&self, token: &Token) -> String {
+    fn visit_variable_expr(&mut self, token: &Token) -> String {
+        todo!()
+    }
+
+    fn visit_assign_expr(&mut self, token: &Token, expr: &Expr) -> String {
         todo!()
     }
 }
