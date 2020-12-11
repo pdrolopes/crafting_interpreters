@@ -10,16 +10,26 @@ use std::slice::Iter;
 
 pub struct Parser<'a> {
     tokens_iter: Peekable<Iter<'a, Token>>,
+    allow_only_expression: bool,
+    found_only_expr: bool, // flag that signals if a expression only was found(without ending ;)
+}
+
+#[derive(Clone)]
+pub enum ParseResult {
+    List(Vec<Result<Stmt>>),
+    SingleExpr(Result<Stmt>),
 }
 
 impl<'a> Parser<'a> {
-    pub fn new(tokens: &'a [Token]) -> Self {
+    pub fn new(tokens: &'a [Token], allow_only_expression: bool) -> Self {
         Self {
             tokens_iter: tokens.iter().peekable(),
+            allow_only_expression,
+            found_only_expr: false,
         }
     }
 
-    pub fn parse(&mut self) -> Vec<Result<Stmt>> {
+    pub fn parse(&mut self) -> ParseResult {
         let mut parsed_list = Vec::new();
 
         while let Some(token) = self.tokens_iter.peek() {
@@ -27,10 +37,16 @@ impl<'a> Parser<'a> {
                 break;
             }
 
-            parsed_list.push(self.declaration());
+            let declaration = self.declaration();
+
+            if self.found_only_expr {
+                return ParseResult::SingleExpr(declaration);
+            }
+
+            parsed_list.push(declaration);
         }
 
-        parsed_list
+        ParseResult::List(parsed_list)
     }
 
     fn declaration(&mut self) -> Result<Stmt> {
@@ -58,13 +74,13 @@ impl<'a> Parser<'a> {
             .consume(TokenType::Identifier, "Expect variable name")?
             .clone();
 
-        let mut initializer = Expr::Nil;
+        let mut initializer = None;
         if self
             .tokens_iter
             .next_if(|t| t.kind == TokenType::Equal)
             .is_some()
         {
-            initializer = self.expression()?;
+            initializer = Some(self.expression()?);
         }
 
         self.consume(TokenType::Semicolon, "Expect ; after variable declaration")?;
@@ -81,14 +97,58 @@ impl<'a> Parser<'a> {
             return self.print_stmt();
         }
 
+        if self
+            .tokens_iter
+            .next_if(|t| t.kind == TokenType::LeftBrace)
+            .is_some()
+        {
+            return self.block();
+        }
+
         self.expr_stmt()
     }
 
     fn expr_stmt(&mut self) -> Result<Stmt> {
         let expr = self.expression()?;
-        self.consume(TokenType::Semicolon, "Expected ; after expression")?;
+
+        // dbg!(self.allow_only_expression, self.tokens_iter.peek());
+        let next_token_is_EOF = self
+            .tokens_iter
+            .peek()
+            .map(|token| matches!(token.kind, TokenType::Eof))
+            .unwrap_or(false);
+        if self.allow_only_expression && next_token_is_EOF {
+            self.found_only_expr = true;
+            return Ok(Stmt::Expression(expr));
+        } else {
+            self.consume(TokenType::Semicolon, "Expected ; after expression")?;
+        }
 
         Ok(Stmt::Expression(expr))
+    }
+
+    fn block(&mut self) -> Result<Stmt> {
+        let mut statements = vec![];
+
+        while self
+            .tokens_iter
+            .peek()
+            .and_then(|token| {
+                if !matches!(&token.kind, TokenType::RightBrace | TokenType::Eof) {
+                    Some(token)
+                } else {
+                    None
+                }
+            })
+            .is_some()
+        {
+            let stmt = self.declaration()?;
+            statements.push(stmt);
+        }
+
+        self.consume(TokenType::RightBrace, "Expected '}' after block.")?;
+
+        Ok(Stmt::Block(statements))
     }
 
     fn print_stmt(&mut self) -> Result<Stmt> {

@@ -1,7 +1,7 @@
 use crate::token::Token;
 use std::fmt::Display;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum LoxError {
     ParserError(usize, String),
     RuntimeError(Token, String),

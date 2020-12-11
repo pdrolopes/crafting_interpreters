@@ -1,4 +1,5 @@
 use super::interpreter::Interpreter;
+use super::parser::ParseResult;
 use super::parser::Parser;
 use super::scanner::Scanner;
 use super::token::Token;
@@ -19,7 +20,9 @@ pub fn run_file(path: String) -> Result<(), Box<dyn Error>> {
     let mut f = File::open(path)?;
     let mut buffer = String::new();
     f.read_to_string(&mut buffer)?;
-    run(buffer);
+    let stmts = run(buffer);
+    let mut interpreter = Interpreter::new();
+    interpreter.interpret(&stmts);
 
     if HAD_ERROR.load(Ordering::Relaxed) {
         Err("Some error occured".into())
@@ -40,8 +43,11 @@ pub fn run_prompt() {
                     // if input has only \n
                     break;
                 }
-                let stmts = run(input);
-                interpreter.interpret(&stmts);
+                let stmts = repl_interpret(input);
+                match stmts {
+                    ReplStatements::List(x) => interpreter.interpret(&x),
+                    ReplStatements::SingleExpr(x) => interpreter.print(&x),
+                };
                 HAD_ERROR.store(false, Ordering::Relaxed);
             }
             Err(error) => println!("error: {}", error),
@@ -49,13 +55,59 @@ pub fn run_prompt() {
     }
 }
 
+pub enum ReplStatements {
+    SingleExpr(Stmt),
+    List(Vec<Stmt>),
+}
+
+pub fn repl_interpret(input: String) -> ReplStatements {
+    let mut scanner = Scanner::new(input);
+    scanner.scan_tokens();
+    let mut parser = Parser::new(&scanner.tokens, true);
+    let parsed_result = parser.parse();
+
+    let errs: Vec<_> = match &parsed_result {
+        ParseResult::SingleExpr(Err(x)) => vec![x.clone()],
+        ParseResult::SingleExpr(_) => vec![],
+        ParseResult::List(x) => x
+            .into_iter()
+            .filter_map(|x| x.as_ref().err())
+            .cloned()
+            .collect::<Vec<LoxError>>(),
+    };
+
+    if !errs.is_empty() {
+        errs.iter().for_each(|err| println!("{}", err));
+        return ReplStatements::List(vec![]);
+    }
+
+    match parsed_result {
+        ParseResult::List(x) => {
+            ReplStatements::List(x.into_iter().filter_map(|x| x.ok()).collect())
+        }
+        ParseResult::SingleExpr(stmt) => {
+            if let Ok(stmt) = stmt {
+                ReplStatements::SingleExpr(stmt)
+            } else {
+                ReplStatements::List(vec![])
+            }
+        }
+    }
+}
+
+// TODO figureout duplicated code
 pub fn run(input: String) -> Vec<Stmt> {
     let mut scanner = Scanner::new(input);
     scanner.scan_tokens();
-    let mut parser = Parser::new(&scanner.tokens);
+    let mut parser = Parser::new(&scanner.tokens, false);
     let parsed_result = parser.parse();
 
-    let errs: Vec<_> = parsed_result
+    let list_result = match parsed_result {
+        ParseResult::List(x) => x,
+        ParseResult::SingleExpr(_) => unreachable!(), // Interpreting a file doesnt allow expr only without ;,
+    };
+
+    let errs: Vec<_> = list_result
         .iter()
         .filter_map(|x| x.as_ref().err())
         .collect();
@@ -65,7 +117,7 @@ pub fn run(input: String) -> Vec<Stmt> {
         return vec![];
     }
 
-    parsed_result.into_iter().filter_map(|x| x.ok()).collect()
+    list_result.into_iter().filter_map(|x| x.ok()).collect()
 }
 
 pub fn error(line: usize, message: &str) {

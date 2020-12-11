@@ -8,15 +8,17 @@ use crate::lox;
 use crate::object::Object;
 use crate::token::Token;
 use crate::token_type::TokenType;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 pub struct Interpreter {
-    environment: Environment,
+    environment: Rc<RefCell<Environment>>,
 }
 
 impl Interpreter {
     pub fn new() -> Self {
         Interpreter {
-            environment: Environment::new(),
+            environment: Rc::new(RefCell::new(Environment::new())),
         }
     }
 
@@ -26,13 +28,20 @@ impl Interpreter {
                 .unwrap_or_else(|err| lox::report_runtime(err));
         }
     }
+
+    pub fn print(&mut self, statement: &Stmt) {
+        if let Stmt::Expression(x) = statement {
+            stmt::Visitor::visit_print_stmt(self, x);
+        }
+    }
+
     fn evaluate(&mut self, expr: &Expr) -> Result<Object> {
         expr.accept(self)
     }
 
-    // fn execute(&mut self, stmt: &Stmt) -> Result<()> {
-    //     stmt.accept(self)
-    // }
+    fn execute(&mut self, stmt: &Stmt) -> Result<()> {
+        stmt.accept(self)
+    }
 }
 
 fn is_truphy(object: Object) -> bool {
@@ -187,12 +196,17 @@ impl expr::Visitor<Result<Object>> for Interpreter {
     }
 
     fn visit_variable_expr(&mut self, token: &Token) -> Result<Object> {
-        self.environment.get(token).map(|object| object.clone())
+        self.environment
+            .borrow()
+            .get(token)
+            .map(|object| object.clone())
     }
 
     fn visit_assign_expr(&mut self, token: &Token, expr: &Expr) -> Result<Object> {
         let object = self.evaluate(expr)?;
-        self.environment.assign(token, object.clone())?;
+        self.environment
+            .borrow_mut()
+            .assign(token, object.clone())?;
 
         Ok(object)
     }
@@ -200,7 +214,22 @@ impl expr::Visitor<Result<Object>> for Interpreter {
 
 impl stmt::Visitor<Result<()>> for Interpreter {
     fn visit_block_stmt(&mut self, statements: &[stmt::Stmt]) -> Result<()> {
-        todo!()
+        let mut enclosed_enviroment = Rc::new(RefCell::new(Environment::new_with_enclosing(
+            Rc::clone(&self.environment),
+        )));
+
+        // Ugly code where environment is swapped out to the new enclosed enviroment.
+        // After statements are executed. I swap it back
+        std::mem::swap(&mut self.environment, &mut enclosed_enviroment);
+
+        let results: Result<()> = statements
+            .into_iter()
+            .map(|stmt| self.execute(stmt))
+            .collect();
+
+        std::mem::swap(&mut self.environment, &mut enclosed_enviroment);
+
+        results
     }
 
     fn visit_expression_stmt(&mut self, expr: &Expr) -> Result<()> {
@@ -216,10 +245,12 @@ impl stmt::Visitor<Result<()>> for Interpreter {
         Ok(())
     }
 
-    fn visit_var_stmt(&mut self, token: &Token, expr: &Expr) -> Result<()> {
+    fn visit_var_stmt(&mut self, token: &Token, expr: Option<&Expr>) -> Result<()> {
         let value = self.evaluate(expr)?;
 
-        self.environment.define(token.lexeme.clone(), value);
+        self.environment
+            .borrow_mut()
+            .define(token.lexeme.clone(), value);
 
         Ok(())
     }

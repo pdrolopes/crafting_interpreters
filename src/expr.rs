@@ -1,5 +1,6 @@
 use super::token::Token;
 
+#[derive(Clone)]
 pub enum Expr {
     Binary(Box<Expr>, Token, Box<Expr>),
     Grouping(Box<Expr>),
