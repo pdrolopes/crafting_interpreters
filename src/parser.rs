@@ -111,7 +111,6 @@ impl<'a> Parser<'a> {
     fn expr_stmt(&mut self) -> Result<Stmt> {
         let expr = self.expression()?;
 
-        // dbg!(self.allow_only_expression, self.tokens_iter.peek());
         let next_token_is_EOF = self
             .tokens_iter
             .peek()

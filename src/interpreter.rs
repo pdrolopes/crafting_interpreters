@@ -246,7 +246,14 @@ impl stmt::Visitor<Result<()>> for Interpreter {
     }
 
     fn visit_var_stmt(&mut self, token: &Token, expr: Option<&Expr>) -> Result<()> {
-        let value = self.evaluate(expr)?;
+        let value = expr.as_ref().map(|value| self.evaluate(value));
+
+        let value = match value {
+            Some(Err(x)) => return Err(x),
+            Some(Ok(x)) => Some(x),
+            None => None,
+        };
+        // let value = self.evaluate(expr)?;
 
         self.environment
             .borrow_mut()

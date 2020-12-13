@@ -7,7 +7,7 @@ use std::rc::Rc;
 
 #[derive(Debug)]
 pub struct Environment {
-    variables: HashMap<String, Object>,
+    variables: HashMap<String, Option<Object>>,
     enclosing: Option<Rc<RefCell<Environment>>>,
 }
 
@@ -26,13 +26,13 @@ impl Environment {
         }
     }
 
-    pub fn define(&mut self, key: String, value: Object) {
+    pub fn define(&mut self, key: String, value: Option<Object>) {
         self.variables.insert(key, value);
     }
 
     pub fn assign(&mut self, token: &Token, value: Object) -> Result<()> {
         if self.variables.contains_key(&token.lexeme) {
-            self.variables.insert(token.lexeme.clone(), value);
+            self.variables.insert(token.lexeme.clone(), Some(value));
             return Ok(());
         }
 
@@ -49,25 +49,32 @@ impl Environment {
         ))
     }
 
-    pub fn get(&self, name: &Token) -> Result<Object> {
+    pub fn get(&self, token: &Token) -> Result<Object> {
         let get_value_from_enclosing = || {
             self.enclosing
                 .as_ref()?
                 .borrow()
-                .get(name)
+                .get(token)
                 .map(|value| value.clone())
                 .ok()
         };
 
-        self.variables
-            .get(&name.lexeme)
-            .map(|value| value.clone())
-            .or_else(get_value_from_enclosing)
-            .ok_or_else(|| {
+        let variable = self.variables.get(&token.lexeme).map(|value| value.clone());
+        match variable {
+            // Variable declared (initialized or not)
+            Some(x) => x.ok_or_else(|| {
                 LoxError::RuntimeError(
-                    name.clone(),
-                    format!("Undefined variable '{}'.", name.lexeme),
+                    token.clone(),
+                    format!("Non initialized variable '{}'.", token.lexeme),
                 )
-            })
+            }),
+            // Non declared variable
+            None => get_value_from_enclosing().ok_or_else(|| {
+                LoxError::RuntimeError(
+                    token.clone(),
+                    format!("Undefined variable '{}'.", token.lexeme),
+                )
+            }),
+        }
     }
 }
