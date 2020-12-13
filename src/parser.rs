@@ -107,6 +107,22 @@ impl<'a> Parser<'a> {
 
         if self
             .tokens_iter
+            .next_if(|t| t.kind == TokenType::While)
+            .is_some()
+        {
+            return self.while_stmt();
+        }
+
+        if self
+            .tokens_iter
+            .next_if(|t| t.kind == TokenType::For)
+            .is_some()
+        {
+            return self.for_stmt();
+        }
+
+        if self
+            .tokens_iter
             .next_if(|t| t.kind == TokenType::LeftBrace)
             .is_some()
         {
@@ -186,6 +202,66 @@ impl<'a> Parser<'a> {
         self.consume(TokenType::Semicolon, "Expected ; after value")?;
 
         Ok(Stmt::Print(expr))
+    }
+
+    fn while_stmt(&mut self) -> Result<Stmt> {
+        self.consume(TokenType::LeftParen, "Expected '(' before condition")?;
+        let cond = self.expression()?;
+        self.consume(TokenType::RightParen, "Expected ')' after condition")?;
+
+        let block = self.statement()?;
+
+        Ok(Stmt::While(cond, Box::new(block)))
+    }
+
+    fn for_stmt(&mut self) -> Result<Stmt> {
+        // desugar for into while
+        self.consume(TokenType::LeftParen, "Expected '(' after for")?;
+        let initializer = match self
+            .tokens_iter
+            .next_if(|token| matches!(token.kind, TokenType::Semicolon | TokenType::Var))
+            .map(|token| &token.kind)
+        {
+            Some(TokenType::Var) => Some(self.var_declaration()?),
+            Some(TokenType::Semicolon) => None,
+            _ => Some(self.expr_stmt()?),
+        };
+
+        let condition = if let Some(TokenType::Semicolon) = self.tokens_iter.peek().map(|t| &t.kind)
+        {
+            None
+        } else {
+            Some(self.expression()?)
+        };
+
+        self.consume(TokenType::Semicolon, "Expected ';' after conditional")?;
+
+        let increment =
+            if let Some(TokenType::RightParen) = self.tokens_iter.peek().map(|t| &t.kind) {
+                None
+            } else {
+                Some(self.expression()?)
+            };
+
+        self.consume(TokenType::RightParen, "Expected ')' after for clauses")?;
+
+        let mut block = self.statement()?;
+
+        if let Some(increment) = increment {
+            block = Stmt::Block(vec![block, Stmt::Expression(increment)]);
+        }
+
+        if let Some(condition) = condition {
+            block = Stmt::While(condition, Box::new(block));
+        } else {
+            block = Stmt::While(Expr::Boolean(true), Box::new(block));
+        }
+
+        if let Some(initializer) = initializer {
+            block = Stmt::Block(vec![initializer, block]);
+        }
+
+        Ok(block)
     }
 
     fn expression(&mut self) -> Result<Expr> {

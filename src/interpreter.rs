@@ -285,8 +285,8 @@ impl stmt::Visitor<Result<()>> for Interpreter {
     fn visit_if_stmt(
         &mut self,
         cond: &Expr,
-        then_branch: &Box<Stmt>,
-        else_branch: Option<&Box<Stmt>>,
+        then_branch: &Stmt,
+        else_branch: Option<&Stmt>,
     ) -> Result<()> {
         let cond = self.evaluate(cond)?;
 
@@ -297,5 +297,13 @@ impl stmt::Visitor<Result<()>> for Interpreter {
         } else {
             Ok(())
         }
+    }
+
+    fn visit_while_stmt(&mut self, cond: &Expr, block: &Stmt) -> Result<()> {
+        while self.evaluate(cond)?.is_truphy() {
+            self.execute(block)?;
+        }
+
+        Ok(())
     }
 }
