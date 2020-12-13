@@ -210,8 +210,9 @@ impl<'a> Parser<'a> {
 
         return Ok(expr);
     }
+
     fn conditional(&mut self) -> Result<Expr> {
-        let expr = self.equality()?;
+        let expr = self.logic_or()?;
 
         let kind = self.tokens_iter.peek().map(|t| &t.kind);
 
@@ -232,6 +233,36 @@ impl<'a> Parser<'a> {
         } else {
             Ok(expr)
         }
+    }
+
+    fn logic_or(&mut self) -> Result<Expr> {
+        let mut left = self.logic_and()?;
+
+        while self
+            .tokens_iter
+            .next_if(|token| token.kind == TokenType::Or)
+            .is_some()
+        {
+            let right = self.logic_and()?;
+            left = Expr::LogicOr(Box::new(left), Box::new(right));
+        }
+
+        return Ok(left);
+    }
+
+    fn logic_and(&mut self) -> Result<Expr> {
+        let mut left = self.equality()?;
+
+        while self
+            .tokens_iter
+            .next_if(|token| token.kind == TokenType::And)
+            .is_some()
+        {
+            let right = self.equality()?;
+            left = Expr::LogicAnd(Box::new(left), Box::new(right))
+        }
+
+        return Ok(left);
     }
 
     fn equality(&mut self) -> Result<Expr> {

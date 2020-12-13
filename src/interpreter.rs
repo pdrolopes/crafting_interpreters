@@ -210,6 +210,26 @@ impl expr::Visitor<Result<Object>> for Interpreter {
 
         Ok(object)
     }
+
+    fn visit_logic_or(&mut self, left: &Expr, right: &Expr) -> Result<Object> {
+        let left = self.evaluate(left)?;
+
+        if left.is_truphy() {
+            Ok(left)
+        } else {
+            self.evaluate(right)
+        }
+    }
+
+    fn visit_logic_and(&mut self, left: &Expr, right: &Expr) -> Result<Object> {
+        let left = self.evaluate(left)?;
+
+        if !left.is_truphy() {
+            Ok(left)
+        } else {
+            self.evaluate(right)
+        }
+    }
 }
 
 impl stmt::Visitor<Result<()>> for Interpreter {

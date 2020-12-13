@@ -10,6 +10,8 @@ pub enum Expr {
     // Variables
     Variable(Token),
     Assign(Token, Box<Expr>),
+    LogicOr(Box<Expr>, Box<Expr>),
+    LogicAnd(Box<Expr>, Box<Expr>),
 
     // Literal values
     Number(f64),
@@ -37,6 +39,8 @@ impl Expr {
             Expr::Nil => visitor.visit_literal_expr_nil(),
             Expr::Variable(token) => visitor.visit_variable_expr(token),
             Expr::Assign(token, expr) => visitor.visit_assign_expr(token, expr),
+            Expr::LogicOr(left, right) => visitor.visit_logic_or(left, right),
+            Expr::LogicAnd(left, right) => visitor.visit_logic_and(left, right),
         }
     }
 }
@@ -52,4 +56,6 @@ pub trait Visitor<T> {
     fn visit_literal_expr_nil(&mut self) -> T;
     fn visit_variable_expr(&mut self, token: &Token) -> T;
     fn visit_assign_expr(&mut self, token: &Token, expr: &Expr) -> T;
+    fn visit_logic_or(&mut self, left: &Expr, right: &Expr) -> T;
+    fn visit_logic_and(&mut self, left: &Expr, right: &Expr) -> T;
 }

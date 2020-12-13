@@ -64,6 +64,14 @@ impl Visitor<String> for ASTPrinter {
     fn visit_assign_expr(&mut self, token: &Token, expr: &Expr) -> String {
         todo!()
     }
+
+    fn visit_logic_or(&mut self, left: &Expr, right: &Expr) -> String {
+        todo!()
+    }
+
+    fn visit_logic_and(&mut self, left: &Expr, right: &Expr) -> String {
+        todo!()
+    }
 }
 
 // --- Reverse Polish Notation ---
@@ -125,6 +133,14 @@ impl Visitor<String> for RPNPrinter {
     }
 
     fn visit_assign_expr(&mut self, token: &Token, expr: &Expr) -> String {
+        todo!()
+    }
+
+    fn visit_logic_or(&mut self, left: &Expr, right: &Expr) -> String {
+        todo!()
+    }
+
+    fn visit_logic_and(&mut self, left: &Expr, right: &Expr) -> String {
         todo!()
     }
 }
