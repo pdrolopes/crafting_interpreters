@@ -261,4 +261,21 @@ impl stmt::Visitor<Result<()>> for Interpreter {
 
         Ok(())
     }
+
+    fn visit_if_stmt(
+        &mut self,
+        cond: &Expr,
+        then_branch: &Box<Stmt>,
+        else_branch: Option<&Box<Stmt>>,
+    ) -> Result<()> {
+        let cond = self.evaluate(cond)?;
+
+        if cond.is_truphy() {
+            self.execute(then_branch)
+        } else if let Some(else_branch) = else_branch {
+            self.execute(else_branch)
+        } else {
+            Ok(())
+        }
+    }
 }

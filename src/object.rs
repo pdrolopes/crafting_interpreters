@@ -7,6 +7,15 @@ pub enum Object {
     Number(f64),
     Nil,
 }
+impl Object {
+    pub fn is_truphy(&self) -> bool {
+        match self {
+            Object::Boolean(x) => x.clone(),
+            Object::Nil => false,
+            _ => true,
+        }
+    }
+}
 
 impl Display for Object {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

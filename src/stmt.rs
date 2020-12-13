@@ -7,6 +7,7 @@ pub enum Stmt {
     Expression(Expr),
     Print(Expr),
     Var(Token, Option<Expr>),
+    If(Expr, Box<Stmt>, Option<Box<Stmt>>),
 }
 
 impl Stmt {
@@ -16,6 +17,9 @@ impl Stmt {
             Stmt::Expression(expr) => visitor.visit_expression_stmt(expr),
             Stmt::Print(expr) => visitor.visit_print_stmt(expr),
             Stmt::Var(token, expr) => visitor.visit_var_stmt(token, expr.as_ref()),
+            Stmt::If(cond, then_branch, else_branch) => {
+                visitor.visit_if_stmt(cond, then_branch, else_branch.as_ref())
+            }
         }
     }
 }
@@ -25,4 +29,10 @@ pub trait Visitor<T> {
     fn visit_expression_stmt(&mut self, expr: &Expr) -> T;
     fn visit_print_stmt(&mut self, expr: &Expr) -> T;
     fn visit_var_stmt(&mut self, token: &Token, expr: Option<&Expr>) -> T;
+    fn visit_if_stmt(
+        &mut self,
+        cond: &Expr,
+        then_branch: &Box<Stmt>,
+        else_branch: Option<&Box<Stmt>>,
+    ) -> T;
 }

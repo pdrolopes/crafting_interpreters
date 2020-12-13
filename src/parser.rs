@@ -91,6 +91,14 @@ impl<'a> Parser<'a> {
     fn statement(&mut self) -> Result<Stmt> {
         if self
             .tokens_iter
+            .next_if(|t| t.kind == TokenType::If)
+            .is_some()
+        {
+            return self.if_stmt();
+        }
+
+        if self
+            .tokens_iter
             .next_if(|t| t.kind == TokenType::Print)
             .is_some()
         {
@@ -106,6 +114,28 @@ impl<'a> Parser<'a> {
         }
 
         self.expr_stmt()
+    }
+
+    fn if_stmt(&mut self) -> Result<Stmt> {
+        self.consume(TokenType::LeftParen, "expected '(' after if")?;
+        let cond = self.expression()?;
+        self.consume(
+            TokenType::RightParen,
+            "expected ')' to close if conditional",
+        )?;
+
+        let then_branch = self.statement()?;
+        let else_branch = if self
+            .tokens_iter
+            .next_if(|t| t.kind == TokenType::Else)
+            .is_some()
+        {
+            Some(Box::new(self.statement()?))
+        } else {
+            None
+        };
+
+        Ok(Stmt::If(cond, Box::new(then_branch), else_branch))
     }
 
     fn expr_stmt(&mut self) -> Result<Stmt> {
