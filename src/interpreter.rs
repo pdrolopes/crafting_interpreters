@@ -348,6 +348,7 @@ impl stmt::Visitor<Result<()>> for Interpreter {
             Some(Object::Call(Box::new(UserFunction::new(
                 Vec::from(params),
                 Vec::from(body),
+                Rc::clone(&self.environment),
             )))),
         );
         Ok(())
@@ -391,10 +392,15 @@ impl Callable for ClockFunction {
 struct UserFunction {
     params: Vec<Token>,
     body: Vec<Stmt>,
+    closure: Rc<RefCell<Environment>>,
 }
 impl UserFunction {
-    pub fn new(params: Vec<Token>, body: Vec<Stmt>) -> Self {
-        UserFunction { params, body }
+    pub fn new(params: Vec<Token>, body: Vec<Stmt>, environment: Rc<RefCell<Environment>>) -> Self {
+        UserFunction {
+            params,
+            body,
+            closure: environment,
+        }
     }
 }
 impl Callable for UserFunction {
@@ -403,7 +409,7 @@ impl Callable for UserFunction {
     }
 
     fn call(&self, arguments: &[Object], interpreter: &mut Interpreter) -> Result<Object> {
-        let mut environment = Environment::new_with_enclosing(interpreter.environment());
+        let mut environment = Environment::new_with_enclosing(Rc::clone(&self.closure));
 
         self.params
             .iter()
