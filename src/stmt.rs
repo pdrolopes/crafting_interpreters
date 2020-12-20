@@ -1,14 +1,16 @@
 use crate::expr::Expr;
 use crate::token::Token;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum Stmt {
     Block(Vec<Stmt>),
     Expression(Expr),
     Print(Expr),
     Var(Token, Option<Expr>),
     If(Expr, Box<Stmt>, Option<Box<Stmt>>),
+    Function(Token, Vec<Token>, Vec<Stmt>),
     While(Expr, Box<Stmt>),
+    Return(Expr),
 }
 
 impl Stmt {
@@ -22,6 +24,10 @@ impl Stmt {
                 visitor.visit_if_stmt(cond, then_branch, else_branch.as_deref())
             }
             Stmt::While(cond, block) => visitor.visit_while_stmt(cond, block),
+            Stmt::Function(token, parameters, body) => {
+                visitor.visit_function_stmt(token, parameters, body)
+            }
+            Stmt::Return(expr) => visitor.visit_return_stmt(expr),
         }
     }
 }
@@ -33,4 +39,6 @@ pub trait Visitor<T> {
     fn visit_var_stmt(&mut self, token: &Token, expr: Option<&Expr>) -> T;
     fn visit_if_stmt(&mut self, cond: &Expr, then_branch: &Stmt, else_branch: Option<&Stmt>) -> T;
     fn visit_while_stmt(&mut self, cond: &Expr, block: &Stmt) -> T;
+    fn visit_function_stmt(&mut self, name: &Token, params: &[Token], body: &[Stmt]) -> T;
+    fn visit_return_stmt(&mut self, expr: &Expr) -> T;
 }

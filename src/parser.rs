@@ -1,5 +1,5 @@
 use super::error;
-use super::error::Result;
+use super::error::{LoxError, Result};
 use super::expr::Expr;
 use super::lox;
 use super::token::Token;
@@ -8,6 +8,7 @@ use crate::stmt::Stmt;
 use std::iter::Peekable;
 use std::slice::Iter;
 
+const MAX_FUN_ARGUMENTS: usize = 255;
 pub struct Parser<'a> {
     tokens_iter: Peekable<Iter<'a, Token>>,
     allow_only_expression: bool,
@@ -18,6 +19,12 @@ pub struct Parser<'a> {
 pub enum ParseResult {
     List(Vec<Result<Stmt>>),
     SingleExpr(Result<Stmt>),
+}
+
+#[derive(Debug)]
+pub enum FunctionKind {
+    Function,
+    Method,
 }
 
 impl<'a> Parser<'a> {
@@ -52,6 +59,12 @@ impl<'a> Parser<'a> {
     fn declaration(&mut self) -> Result<Stmt> {
         let result = if self
             .tokens_iter
+            .next_if(|token| token.kind == TokenType::Fun)
+            .is_some()
+        {
+            self.fun_declaration(FunctionKind::Function)
+        } else if self
+            .tokens_iter
             .next_if(|token| token.kind == TokenType::Var)
             .is_some()
         {
@@ -67,6 +80,61 @@ impl<'a> Parser<'a> {
             }
             x => x,
         }
+    }
+
+    fn fun_declaration(&mut self, kind: FunctionKind) -> Result<Stmt> {
+        let token_name = self
+            .consume(TokenType::Identifier, &format!("Expected {:?} name", kind))?
+            .clone();
+        self.consume(
+            TokenType::LeftParen,
+            &format!("Expected '(' after {:?}", kind),
+        )?;
+
+        let mut parameters = vec![];
+
+        if self
+            .tokens_iter
+            .peek()
+            .map(|token| token.kind != TokenType::RightParen)
+            .unwrap_or(false)
+        {
+            loop {
+                if parameters.len() > MAX_FUN_ARGUMENTS {
+                    return Err(LoxError::RuntimeError(
+                        token_name,
+                        "Reached maximum number of parameters(255)".to_string(),
+                    ));
+                }
+                let param = self
+                    .consume(TokenType::Identifier, "Expected identifier")?
+                    .clone();
+                parameters.push(param);
+
+                if self
+                    .tokens_iter
+                    .next_if(|token| token.kind == TokenType::Comma)
+                    .is_none()
+                {
+                    break;
+                }
+            }
+        }
+
+        self.consume(
+            TokenType::RightParen,
+            &format!("Expected ')' after {:?} parameters.", kind),
+        )?;
+        self.consume(
+            TokenType::LeftBrace,
+            &format!("Expected '{{' before {:?} body.", kind),
+        )?;
+        let body = match self.block()? {
+            Stmt::Block(statements) => statements.clone(),
+            x => vec![x],
+        };
+
+        Ok(Stmt::Function(token_name, parameters, body))
     }
 
     fn var_declaration(&mut self) -> Result<Stmt> {
@@ -127,6 +195,14 @@ impl<'a> Parser<'a> {
             .is_some()
         {
             return self.block();
+        }
+
+        if self
+            .tokens_iter
+            .next_if(|t| t.kind == TokenType::Return)
+            .is_some()
+        {
+            return self.return_stmt();
         }
 
         self.expr_stmt()
@@ -212,6 +288,23 @@ impl<'a> Parser<'a> {
         let block = self.statement()?;
 
         Ok(Stmt::While(cond, Box::new(block)))
+    }
+
+    fn return_stmt(&mut self) -> Result<Stmt> {
+        let expr = if self
+            .tokens_iter
+            .peek()
+            .map(|t| t.kind != TokenType::Semicolon)
+            .unwrap_or(false)
+        {
+            self.expression()?
+        } else {
+            Expr::Nil
+        };
+
+        self.consume(TokenType::Semicolon, "Expected ; after return expression")?;
+
+        Ok(Stmt::Return(expr))
     }
 
     fn for_stmt(&mut self) -> Result<Stmt> {
@@ -418,11 +511,62 @@ impl<'a> Parser<'a> {
 
         if matches {
             let operator = self.tokens_iter.next().unwrap(); // safe unwrap
-            let right = self.unary()?;
+            let right = self.call()?;
             Ok(Expr::Unary(operator.clone(), Box::new(right)))
         } else {
-            self.primary()
+            self.call()
         }
+    }
+
+    fn call(&mut self) -> Result<Expr> {
+        let mut expr = self.primary()?;
+
+        loop {
+            if self
+                .tokens_iter
+                .next_if(|token| token.kind == TokenType::LeftParen)
+                .is_some()
+            {
+                expr = self.finish_call(expr)?;
+            } else {
+                break;
+            }
+        }
+
+        Ok(expr)
+    }
+
+    fn finish_call(&mut self, expr: Expr) -> Result<Expr> {
+        let mut arguments = vec![];
+
+        if self
+            .tokens_iter
+            .peek()
+            .map(|token| token.kind != TokenType::RightParen)
+            .unwrap_or(false)
+        {
+            loop {
+                let argument = self.expression()?;
+                arguments.push(argument);
+                if arguments.len() > MAX_FUN_ARGUMENTS {
+                    return Err(error(
+                        (*self.tokens_iter.peek().unwrap()).clone(),
+                        "Too many arguments",
+                    ));
+                }
+                if self
+                    .tokens_iter
+                    .next_if(|token| token.kind == TokenType::Comma)
+                    .is_none()
+                {
+                    break;
+                }
+            }
+        }
+
+        let paren_token = self.consume(TokenType::RightParen, "Expected ')' after arguments")?;
+
+        Ok(Expr::Call(Box::new(expr), paren_token.clone(), arguments))
     }
 
     fn primary(&mut self) -> Result<Expr> {

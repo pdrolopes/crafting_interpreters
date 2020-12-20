@@ -1,3 +1,4 @@
+use crate::object::Object;
 use crate::token::Token;
 use std::fmt::Display;
 
@@ -5,6 +6,7 @@ use std::fmt::Display;
 pub enum LoxError {
     ParserError(usize, String),
     RuntimeError(Token, String),
+    Return(Object),
 }
 
 impl Display for LoxError {
@@ -15,6 +17,9 @@ impl Display for LoxError {
             }
             LoxError::RuntimeError(token, message) => {
                 write!(f, "Runtime error: {} \n [line {}]", message, token.line)
+            }
+            LoxError::Return(_) => {
+                write!(f, "Return statement")
             }
         }
     }

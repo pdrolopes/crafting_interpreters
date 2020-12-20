@@ -6,6 +6,7 @@ pub mod error;
 mod expr;
 mod interpreter;
 mod lox;
+pub mod lox_callable;
 mod object;
 pub mod parser;
 mod scanner;

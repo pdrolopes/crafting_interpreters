@@ -5,11 +5,13 @@ use super::stmt::Stmt;
 use crate::environment::Environment;
 use crate::error::{LoxError, Result};
 use crate::lox;
+use crate::lox_callable::Callable;
 use crate::object::Object;
 use crate::token::Token;
 use crate::token_type::TokenType;
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 pub struct Interpreter {
     environment: Rc<RefCell<Environment>>,
@@ -17,9 +19,16 @@ pub struct Interpreter {
 
 impl Interpreter {
     pub fn new() -> Self {
+        let global_environment = create_global_enviroment();
+        let global_environment = Rc::new(RefCell::new(global_environment));
         Interpreter {
-            environment: Rc::new(RefCell::new(Environment::new())),
+            environment: Rc::new(RefCell::new(Environment::new_with_enclosing(
+                global_environment,
+            ))),
         }
+    }
+    pub fn environment(&self) -> Rc<RefCell<Environment>> {
+        Rc::clone(&self.environment)
     }
 
     pub fn interpret(&mut self, statements: &[Stmt]) {
@@ -42,19 +51,30 @@ impl Interpreter {
     fn execute(&mut self, stmt: &Stmt) -> Result<()> {
         stmt.accept(self)
     }
-}
 
-fn is_truphy(object: Object) -> bool {
-    match object {
-        Object::Boolean(x) => x,
-        Object::Nil => false,
-        _ => true,
+    fn execute_block(
+        &mut self,
+        statements: &[Stmt],
+        enclosing_environment: Environment,
+    ) -> Result<()> {
+        let mut enclosing_environment = Rc::new(RefCell::new(enclosing_environment));
+        // Ugly code where environment is swapped out to the new enclosed enviroment.
+        // After statements are executed. I swap it back
+        std::mem::swap(&mut self.environment, &mut enclosing_environment);
+
+        let results: Result<()> = statements
+            .into_iter()
+            .map(|stmt| self.execute(stmt))
+            .collect();
+
+        std::mem::swap(&mut self.environment, &mut enclosing_environment);
+
+        results
     }
 }
 
 impl expr::Visitor<Result<Object>> for Interpreter {
     fn visit_binary_expr(&mut self, left: &Expr, token: &Token, right: &Expr) -> Result<Object> {
-        // TODO probably only evaluate right when necessary
         let left = self.evaluate(left)?;
         let right = self.evaluate(right)?;
 
@@ -155,7 +175,7 @@ impl expr::Visitor<Result<Object>> for Interpreter {
     fn visit_unary_expr(&mut self, token: &Token, expr: &Expr) -> Result<Object> {
         let eval = self.evaluate(expr)?;
         match (&token.kind, eval) {
-            (TokenType::Bang, x) => Ok(Object::Boolean(!is_truphy(x))),
+            (TokenType::Bang, x) => Ok(Object::Boolean(!x.is_truphy())),
             (TokenType::Minus, Object::Number(value)) => Ok(Object::Number(-value)),
             (TokenType::Minus, _) => Err(LoxError::RuntimeError(
                 token.clone(),
@@ -172,7 +192,7 @@ impl expr::Visitor<Result<Object>> for Interpreter {
         else_branch: &Expr,
     ) -> Result<Object> {
         let cond = self.evaluate(cond)?;
-        if is_truphy(cond) {
+        if cond.is_truphy() {
             self.evaluate(then_branch)
         } else {
             self.evaluate(else_branch)
@@ -230,26 +250,41 @@ impl expr::Visitor<Result<Object>> for Interpreter {
             self.evaluate(right)
         }
     }
+
+    fn visit_call_expr(&mut self, callee: &Expr, token: &Token, args: &[Expr]) -> Result<Object> {
+        let callee = self.evaluate(callee)?;
+
+        let arguments: Result<Vec<Object>> =
+            args.into_iter().map(|arg| self.evaluate(arg)).collect();
+        let arguments = arguments?;
+
+        let callable = if let Object::Call(callable) = callee {
+            callable
+        } else {
+            return Err(LoxError::RuntimeError(
+                token.clone(),
+                "Can only calll on functions or classes".to_string(),
+            ));
+        };
+
+        if callable.arity() != arguments.len() {
+            return Err(LoxError::RuntimeError(
+                token.clone(),
+                format!(
+                    "Expect {} arguments but found {}",
+                    callable.arity(),
+                    arguments.len()
+                ),
+            ));
+        }
+        callable.call(&arguments, self)
+    }
 }
 
 impl stmt::Visitor<Result<()>> for Interpreter {
     fn visit_block_stmt(&mut self, statements: &[stmt::Stmt]) -> Result<()> {
-        let mut enclosed_enviroment = Rc::new(RefCell::new(Environment::new_with_enclosing(
-            Rc::clone(&self.environment),
-        )));
-
-        // Ugly code where environment is swapped out to the new enclosed enviroment.
-        // After statements are executed. I swap it back
-        std::mem::swap(&mut self.environment, &mut enclosed_enviroment);
-
-        let results: Result<()> = statements
-            .into_iter()
-            .map(|stmt| self.execute(stmt))
-            .collect();
-
-        std::mem::swap(&mut self.environment, &mut enclosed_enviroment);
-
-        results
+        let enclosed_enviroment = Environment::new_with_enclosing(Rc::clone(&self.environment));
+        self.execute_block(statements, enclosed_enviroment)
     }
 
     fn visit_expression_stmt(&mut self, expr: &Expr) -> Result<()> {
@@ -305,5 +340,84 @@ impl stmt::Visitor<Result<()>> for Interpreter {
         }
 
         Ok(())
+    }
+
+    fn visit_function_stmt(&mut self, name: &Token, params: &[Token], body: &[Stmt]) -> Result<()> {
+        self.environment.borrow_mut().define(
+            name.lexeme.clone(),
+            Some(Object::Call(Box::new(UserFunction::new(
+                Vec::from(params),
+                Vec::from(body),
+            )))),
+        );
+        Ok(())
+    }
+
+    fn visit_return_stmt(&mut self, expr: &Expr) -> Result<()> {
+        let value = self.evaluate(expr)?;
+        Err(LoxError::Return(value))
+    }
+}
+
+fn create_global_enviroment() -> Environment {
+    let mut global_environment = Environment::new();
+    global_environment.define(
+        "clock".to_string(),
+        Some(Object::Call(Box::new(ClockFunction {}))),
+    );
+
+    global_environment
+}
+
+// global functions
+
+#[derive(Clone, Debug)]
+struct ClockFunction {}
+impl Callable for ClockFunction {
+    fn arity(&self) -> usize {
+        0
+    }
+
+    fn call(&self, _: &[Object], _: &mut Interpreter) -> Result<Object> {
+        let start = SystemTime::now();
+        let since_the_epoch = start
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards");
+        Ok(Object::Number(since_the_epoch.as_secs_f64()))
+    }
+}
+
+#[derive(Clone, Debug)]
+struct UserFunction {
+    params: Vec<Token>,
+    body: Vec<Stmt>,
+}
+impl UserFunction {
+    pub fn new(params: Vec<Token>, body: Vec<Stmt>) -> Self {
+        UserFunction { params, body }
+    }
+}
+impl Callable for UserFunction {
+    fn arity(&self) -> usize {
+        self.params.len()
+    }
+
+    fn call(&self, arguments: &[Object], interpreter: &mut Interpreter) -> Result<Object> {
+        let mut environment = Environment::new_with_enclosing(interpreter.environment());
+
+        self.params
+            .iter()
+            .zip(arguments)
+            .for_each(|(param, argument)| {
+                environment.define(param.lexeme.to_string(), Some(argument.clone()))
+            });
+
+        let result = interpreter.execute_block(&self.body, environment);
+
+        match result {
+            Ok(()) => Ok(Object::Nil),
+            Err(LoxError::Return(value)) => Ok(value),
+            Err(x) => Err(x),
+        }
     }
 }
