@@ -5,6 +5,7 @@ use super::scanner::Scanner;
 use super::token::Token;
 use super::token_type::TokenType;
 use crate::error::LoxError;
+use crate::resolver::Resolver;
 use crate::stmt::Stmt;
 use std::error::Error;
 use std::fs::File;
@@ -21,6 +22,10 @@ pub fn run_file(path: String) -> Result<(), Box<dyn Error>> {
     let mut buffer = String::new();
     f.read_to_string(&mut buffer)?;
     let stmts = run(buffer);
+    let depth_map = Resolver::new().run(&stmts).map_err(|err| {
+        println!("{}", err);
+        err
+    })?;
     let mut interpreter = Interpreter::new();
     interpreter.interpret(&stmts);
 

@@ -10,11 +10,13 @@ use crate::object::Object;
 use crate::token::Token;
 use crate::token_type::TokenType;
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::rc::Rc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 pub struct Interpreter {
     environment: Rc<RefCell<Environment>>,
+    expr_id_scope_depth: HashMap<u64, u64>,
 }
 
 impl Interpreter {
@@ -25,6 +27,7 @@ impl Interpreter {
             environment: Rc::new(RefCell::new(Environment::new_with_enclosing(
                 global_environment,
             ))),
+            expr_id_scope_depth: HashMap::new(),
         }
     }
     pub fn environment(&self) -> Rc<RefCell<Environment>> {
@@ -215,14 +218,14 @@ impl expr::Visitor<Result<Object>> for Interpreter {
         Ok(Object::Nil)
     }
 
-    fn visit_variable_expr(&mut self, token: &Token) -> Result<Object> {
+    fn visit_variable_expr(&mut self, token: &Token, _: u64) -> Result<Object> {
         self.environment
             .borrow()
             .get(token)
             .map(|object| object.clone())
     }
 
-    fn visit_assign_expr(&mut self, token: &Token, expr: &Expr) -> Result<Object> {
+    fn visit_assign_expr(&mut self, token: &Token, expr: &Expr, _: u64) -> Result<Object> {
         let object = self.evaluate(expr)?;
         self.environment
             .borrow_mut()

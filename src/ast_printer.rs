@@ -57,11 +57,11 @@ impl Visitor<String> for ASTPrinter {
         self.parenthesize("Cond", &[cond, then_branch, else_branch])
     }
 
-    fn visit_variable_expr(&mut self, token: &Token) -> String {
+    fn visit_variable_expr(&mut self, _token: &Token, _: u64) -> String {
         todo!()
     }
 
-    fn visit_assign_expr(&mut self, token: &Token, expr: &Expr) -> String {
+    fn visit_assign_expr(&mut self, _token: &Token, _expr: &Expr, _: u64) -> String {
         todo!()
     }
 
@@ -132,11 +132,11 @@ impl Visitor<String> for RPNPrinter {
         todo!()
     }
 
-    fn visit_variable_expr(&mut self, token: &Token) -> String {
+    fn visit_variable_expr(&mut self, token: &Token, _: u64) -> String {
         todo!()
     }
 
-    fn visit_assign_expr(&mut self, token: &Token, expr: &Expr) -> String {
+    fn visit_assign_expr(&mut self, token: &Token, expr: &Expr, _: u64) -> String {
         todo!()
     }
 

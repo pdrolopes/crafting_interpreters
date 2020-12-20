@@ -4,6 +4,7 @@ use std::fmt::Display;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum LoxError {
+    ResolverError(Token, String),
     ParserError(usize, String),
     RuntimeError(Token, String),
     Return(Object),
@@ -12,6 +13,9 @@ pub enum LoxError {
 impl Display for LoxError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            LoxError::ResolverError(token, reason) => {
+                write!(f, "Resolver error in line {}: {}", token.line, reason)
+            }
             LoxError::ParserError(line, reason) => {
                 write!(f, "Parser error in line {}: {}", line, reason)
             }

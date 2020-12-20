@@ -9,8 +9,8 @@ pub enum Expr {
     Call(Box<Expr>, Token, Vec<Expr>),
 
     // Variables
-    Variable(Token),
-    Assign(Token, Box<Expr>),
+    Variable(Token, u64),
+    Assign(Token, Box<Expr>, u64),
     LogicOr(Box<Expr>, Box<Expr>),
     LogicAnd(Box<Expr>, Box<Expr>),
 
@@ -41,8 +41,8 @@ impl Expr {
             Expr::String(x) => visitor.visit_literal_expr_string(x),
             Expr::Boolean(x) => visitor.visit_literal_expr_boolean(*x),
             Expr::Nil => visitor.visit_literal_expr_nil(),
-            Expr::Variable(token) => visitor.visit_variable_expr(token),
-            Expr::Assign(token, expr) => visitor.visit_assign_expr(token, expr),
+            Expr::Variable(token, id) => visitor.visit_variable_expr(token, *id),
+            Expr::Assign(token, expr, id) => visitor.visit_assign_expr(token, expr, *id),
             Expr::LogicOr(left, right) => visitor.visit_logic_or(left, right),
             Expr::LogicAnd(left, right) => visitor.visit_logic_and(left, right),
         }
@@ -59,8 +59,8 @@ pub trait Visitor<T> {
     fn visit_literal_expr_string(&mut self, value: &str) -> T;
     fn visit_literal_expr_boolean(&mut self, value: bool) -> T;
     fn visit_literal_expr_nil(&mut self) -> T;
-    fn visit_variable_expr(&mut self, token: &Token) -> T;
-    fn visit_assign_expr(&mut self, token: &Token, expr: &Expr) -> T;
+    fn visit_variable_expr(&mut self, token: &Token, id: u64) -> T;
+    fn visit_assign_expr(&mut self, token: &Token, expr: &Expr, id: u64) -> T;
     fn visit_logic_or(&mut self, left: &Expr, right: &Expr) -> T;
     fn visit_logic_and(&mut self, left: &Expr, right: &Expr) -> T;
 }

@@ -11,6 +11,7 @@ use std::slice::Iter;
 const MAX_FUN_ARGUMENTS: usize = 255;
 pub struct Parser<'a> {
     tokens_iter: Peekable<Iter<'a, Token>>,
+    var_id: u64,
     allow_only_expression: bool,
     found_only_expr: bool, // flag that signals if a expression only was found(without ending ;)
 }
@@ -31,9 +32,15 @@ impl<'a> Parser<'a> {
     pub fn new(tokens: &'a [Token], allow_only_expression: bool) -> Self {
         Self {
             tokens_iter: tokens.iter().peekable(),
+            var_id: 0,
             allow_only_expression,
             found_only_expr: false,
         }
+    }
+
+    fn next_id(&mut self) -> u64 {
+        self.var_id += 1;
+        self.var_id
     }
 
     pub fn parse(&mut self) -> ParseResult {
@@ -370,8 +377,8 @@ impl<'a> Parser<'a> {
         {
             let value = self.conditional()?;
 
-            if let Expr::Variable(token) = expr {
-                return Ok(Expr::Assign(token, Box::new(value)));
+            if let Expr::Variable(token, _) = expr {
+                return Ok(Expr::Assign(token, Box::new(value), self.next_id()));
             }
 
             error(equals.clone(), "Invalid assignment target");
@@ -577,7 +584,7 @@ impl<'a> Parser<'a> {
                 TokenType::Nil => Ok(Expr::Nil),
                 TokenType::Number(value) => Ok(Expr::Number(*value)),
                 TokenType::String(value) => Ok(Expr::String(value.to_string())),
-                TokenType::Identifier => Ok(Expr::Variable(token.clone())),
+                TokenType::Identifier => Ok(Expr::Variable(token.clone(), self.next_id())),
                 TokenType::LeftParen => {
                     let expr = self.expression()?;
                     self.consume(TokenType::RightParen, "Expect ')' after expression")?;
