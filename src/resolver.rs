@@ -74,7 +74,6 @@ impl Resolver {
             .take(1)
             .next();
 
-        dbg!(&self.scopes);
         if let Some(unused_token) = unused_variable {
             return Err(LoxError::ResolverError(
                 unused_token.clone(),
