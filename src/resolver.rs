@@ -6,10 +6,11 @@ use super::token::Token;
 use crate::error::{LoxError, Result};
 use std::collections::HashMap;
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug)]
 pub enum VarState {
-    Declared { token: Token, has_been_read: bool },
-    Defined { token: Token, has_been_read: bool },
+    Declared { token: Token },
+    Defined { token: Token },
+    Read { token: Token },
 }
 
 impl VarState {
@@ -21,25 +22,24 @@ impl VarState {
         matches!(self, VarState::Defined { .. })
     }
 
+    fn is_read(&self) -> bool {
+        matches!(self, VarState::Read { .. })
+    }
+
     fn token(&self) -> &Token {
         match self {
             VarState::Declared { token, .. } => token,
             VarState::Defined { token, .. } => token,
-        }
-    }
-    fn has_been_read(&self) -> bool {
-        match self {
-            VarState::Declared { has_been_read, .. } => *has_been_read,
-            VarState::Defined { has_been_read, .. } => *has_been_read,
+            VarState::Read { token, .. } => token,
         }
     }
     fn set_has_been_read(&mut self) {
-        let has_been_read = match self {
-            VarState::Declared { has_been_read, .. } | VarState::Defined { has_been_read, .. } => {
-                has_been_read
-            }
-        };
-        *has_been_read = true;
+        *self = match self {
+            VarState::Declared { token, .. } | VarState::Defined { token, .. } => VarState::Read {
+                token: token.clone(),
+            },
+            VarState::Read { .. } => return,
+        }
     }
 }
 
@@ -69,11 +69,12 @@ impl Resolver {
             .scopes
             .iter()
             .flat_map(|map| map.values())
-            .filter(|var_state| !var_state.has_been_read())
+            .filter(|var_state| !var_state.is_read())
             .map(|state| state.token())
             .take(1)
             .next();
 
+        dbg!(&self.scopes);
         if let Some(unused_token) = unused_variable {
             return Err(LoxError::ResolverError(
                 unused_token.clone(),
@@ -110,7 +111,6 @@ impl Resolver {
                 token.lexeme.clone(),
                 VarState::Declared {
                     token: token.clone(),
-                    has_been_read: false,
                 },
             )
         });
@@ -129,36 +129,39 @@ impl Resolver {
         self.scopes.iter_mut().last().map(|map| {
             map.entry(token.lexeme.clone())
                 .and_modify(|entry| {
-                    if let VarState::Declared {
-                        has_been_read,
-                        token,
-                    } = entry
-                    {
+                    if let VarState::Declared { token } = entry {
                         *entry = VarState::Defined {
-                            has_been_read: *has_been_read,
                             token: token.clone(),
                         };
                     }
                 })
                 .or_insert(VarState::Defined {
-                    has_been_read: false,
                     token: token.clone(),
                 });
         });
         Ok(())
     }
 
-    fn resolve_local(&mut self, token: &Token, expr_id: u64) {
+    fn resolve_local(&mut self, token: &Token, expr_id: u64, mark_as_read: bool) {
         let scope_size = self.scopes.len() as u64;
         let found_index = self
             .scopes
             .iter()
-            .rposition(|scope| scope.get(&token.lexeme).is_some())
-            .map(|index| index as u64);
+            .rposition(|scope| scope.get(&token.lexeme).is_some());
+
+        if mark_as_read {
+            found_index.map(|found_index| {
+                self.scopes.iter_mut().nth(found_index).map(|scope_map| {
+                    scope_map
+                        .entry(token.lexeme.clone())
+                        .and_modify(VarState::set_has_been_read)
+                })
+            });
+        };
 
         if let Some(found_index) = found_index {
             self.expr_id_scope_depth
-                .insert(expr_id, scope_size - 1 - found_index);
+                .insert(expr_id, scope_size - 1 - (found_index as u64));
         }
     }
     fn resolve_function(
@@ -311,8 +314,8 @@ impl expr::Visitor<Result<()>> for Resolver {
 
     fn visit_variable_expr(&mut self, token: &crate::token::Token, id: u64) -> Result<()> {
         let var_state = self.scopes.last_mut().and_then(|map| {
-            map.entry(token.lexeme.clone())
-                .and_modify(VarState::set_has_been_read); // set variable as it has been read.
+            // map.entry(token.lexeme.clone())
+            //     .and_modify(VarState::set_has_been_read); // set variable as it has been read.
             map.get(&token.lexeme)
         });
 
@@ -323,7 +326,7 @@ impl expr::Visitor<Result<()>> for Resolver {
             ));
         }
 
-        self.resolve_local(token, id);
+        self.resolve_local(token, id, true);
         Ok(())
     }
 
@@ -334,7 +337,7 @@ impl expr::Visitor<Result<()>> for Resolver {
         id: u64,
     ) -> Result<()> {
         self.resolve_expr(expr)?;
-        self.resolve_local(token, id);
+        self.resolve_local(token, id, false);
         Ok(())
     }
 
