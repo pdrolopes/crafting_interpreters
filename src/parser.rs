@@ -7,11 +7,16 @@ use super::token_type::TokenType;
 use crate::stmt::Stmt;
 use std::iter::Peekable;
 use std::slice::Iter;
+use std::sync::atomic::{AtomicU64, Ordering};
+
+static current_expr_id: AtomicU64 = AtomicU64::new(1);
+fn get_next_id() -> u64 {
+    current_expr_id.fetch_add(1, Ordering::Relaxed)
+}
 
 const MAX_FUN_ARGUMENTS: usize = 255;
 pub struct Parser<'a> {
     tokens_iter: Peekable<Iter<'a, Token>>,
-    var_id: u64,
     allow_only_expression: bool,
     found_only_expr: bool, // flag that signals if a expression only was found(without ending ;)
 }
@@ -32,15 +37,9 @@ impl<'a> Parser<'a> {
     pub fn new(tokens: &'a [Token], allow_only_expression: bool) -> Self {
         Self {
             tokens_iter: tokens.iter().peekable(),
-            var_id: 0,
             allow_only_expression,
             found_only_expr: false,
         }
-    }
-
-    fn next_id(&mut self) -> u64 {
-        self.var_id += 1;
-        self.var_id
     }
 
     pub fn parse(&mut self) -> ParseResult {
@@ -309,9 +308,9 @@ impl<'a> Parser<'a> {
             Expr::Nil
         };
 
-        self.consume(TokenType::Semicolon, "Expected ; after return expression")?;
+        let token = self.consume(TokenType::Semicolon, "Expected ; after return expression")?;
 
-        Ok(Stmt::Return(expr))
+        Ok(Stmt::Return(token.clone(), expr))
     }
 
     fn for_stmt(&mut self) -> Result<Stmt> {
@@ -378,7 +377,7 @@ impl<'a> Parser<'a> {
             let value = self.conditional()?;
 
             if let Expr::Variable(token, _) = expr {
-                return Ok(Expr::Assign(token, Box::new(value), self.next_id()));
+                return Ok(Expr::Assign(token, Box::new(value), get_next_id()));
             }
 
             error(equals.clone(), "Invalid assignment target");
@@ -584,7 +583,7 @@ impl<'a> Parser<'a> {
                 TokenType::Nil => Ok(Expr::Nil),
                 TokenType::Number(value) => Ok(Expr::Number(*value)),
                 TokenType::String(value) => Ok(Expr::String(value.to_string())),
-                TokenType::Identifier => Ok(Expr::Variable(token.clone(), self.next_id())),
+                TokenType::Identifier => Ok(Expr::Variable(token.clone(), get_next_id())),
                 TokenType::LeftParen => {
                     let expr = self.expression()?;
                     self.consume(TokenType::RightParen, "Expect ')' after expression")?;

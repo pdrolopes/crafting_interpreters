@@ -36,30 +36,27 @@ impl Environment {
             return Ok(());
         }
 
-        if let Some(ref enclosing_enviroment) = self.enclosing {
-            return enclosing_enviroment
-                .try_borrow_mut()
-                .expect("Not able to get mutable access to enviroment")
-                .assign(token, value);
-        }
-
         Err(LoxError::RuntimeError(
             token.clone(),
             format!("Undefined variable, `{}`", token.lexeme),
         ))
     }
 
-    pub fn get(&self, token: &Token) -> Result<Object> {
-        let get_value_from_enclosing = || {
-            self.enclosing
-                .as_ref()?
-                .borrow()
-                .get(token)
-                .map(|value| value.clone())
-                .ok()
-        };
+    pub fn assign_at(&mut self, token: &Token, value: Object, distance: u64) -> Result<()> {
+        match distance {
+            0 => self.assign(token, value),
+            distance => self.enclosing.as_ref().expect("Expected to enviroment have an eclosing environment based on calculated distance").borrow_mut().assign_at(token, value, distance - 1),
+        }
+    }
+    pub fn get_at(&self, token: &Token, distance: u64) -> Result<Object> {
+        match distance {
+            0 => self.get(token),
+            distance => self.enclosing.as_ref().expect("Expected to enviroment have an eclosing environment based on calculated distance").borrow().get_at(token, distance - 1),
+        }
+    }
 
-        let variable = self.variables.get(&token.lexeme).map(|value| value.clone());
+    pub fn get(&self, token: &Token) -> Result<Object> {
+        let variable = self.variables.get(&token.lexeme).cloned();
         match variable {
             // Variable declared (initialized or not)
             Some(x) => x.ok_or_else(|| {
@@ -69,12 +66,10 @@ impl Environment {
                 )
             }),
             // Non declared variable
-            None => get_value_from_enclosing().ok_or_else(|| {
-                LoxError::RuntimeError(
-                    token.clone(),
-                    format!("Undefined variable '{}'.", token.lexeme),
-                )
-            }),
+            None => Err(LoxError::RuntimeError(
+                token.clone(),
+                format!("Undefined variable '{}'.", token.lexeme),
+            )),
         }
     }
 }

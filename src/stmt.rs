@@ -10,7 +10,7 @@ pub enum Stmt {
     If(Expr, Box<Stmt>, Option<Box<Stmt>>),
     Function(Token, Vec<Token>, Vec<Stmt>),
     While(Expr, Box<Stmt>),
-    Return(Expr),
+    Return(Token, Expr),
 }
 
 impl Stmt {
@@ -27,7 +27,7 @@ impl Stmt {
             Stmt::Function(token, parameters, body) => {
                 visitor.visit_function_stmt(token, parameters, body)
             }
-            Stmt::Return(expr) => visitor.visit_return_stmt(expr),
+            Stmt::Return(token, expr) => visitor.visit_return_stmt(token, expr),
         }
     }
 }
@@ -40,5 +40,5 @@ pub trait Visitor<T> {
     fn visit_if_stmt(&mut self, cond: &Expr, then_branch: &Stmt, else_branch: Option<&Stmt>) -> T;
     fn visit_while_stmt(&mut self, cond: &Expr, block: &Stmt) -> T;
     fn visit_function_stmt(&mut self, name: &Token, params: &[Token], body: &[Stmt]) -> T;
-    fn visit_return_stmt(&mut self, expr: &Expr) -> T;
+    fn visit_return_stmt(&mut self, token: &Token, expr: &Expr) -> T;
 }

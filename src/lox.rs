@@ -27,6 +27,7 @@ pub fn run_file(path: String) -> Result<(), Box<dyn Error>> {
         err
     })?;
     let mut interpreter = Interpreter::new();
+    interpreter.add_expr_ids_depth(depth_map);
     interpreter.interpret(&stmts);
 
     if HAD_ERROR.load(Ordering::Relaxed) {
@@ -50,7 +51,13 @@ pub fn run_prompt() {
                 }
                 let stmts = repl_interpret(input);
                 match stmts {
-                    ReplStatements::List(x) => interpreter.interpret(&x),
+                    ReplStatements::List(x) => {
+                        Resolver::new()
+                            .run(&x)
+                            .map(|map| interpreter.add_expr_ids_depth(map))
+                            .unwrap(); // TODO Add error treatment to prompt function
+                        interpreter.interpret(&x);
+                    }
                     ReplStatements::SingleExpr(x) => interpreter.print(&x),
                 };
                 HAD_ERROR.store(false, Ordering::Relaxed);

@@ -24,9 +24,11 @@ impl Object {
 impl PartialEq for Object {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Object::Call(_), _) => false,
-            (_, Object::Call(_)) => false,
-            (x, y) => x == y,
+            (Object::Boolean(x), Object::Boolean(y)) => x == y,
+            (Object::Number(x), Object::Number(y)) => x == y,
+            (Object::String(x), Object::String(y)) => x == y,
+            (Object::Nil, Object::Nil) => true,
+            (_, _) => false,
         }
     }
 }

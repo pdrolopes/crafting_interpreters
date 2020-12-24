@@ -15,7 +15,8 @@ use std::rc::Rc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 pub struct Interpreter {
-    environment: Rc<RefCell<Environment>>,
+    global_environment: Rc<RefCell<Environment>>,
+    local_environment: Rc<RefCell<Environment>>,
     expr_id_scope_depth: HashMap<u64, u64>,
 }
 
@@ -24,14 +25,22 @@ impl Interpreter {
         let global_environment = create_global_enviroment();
         let global_environment = Rc::new(RefCell::new(global_environment));
         Interpreter {
-            environment: Rc::new(RefCell::new(Environment::new_with_enclosing(
-                global_environment,
-            ))),
+            local_environment: Rc::new(RefCell::new(Environment::new_with_enclosing(Rc::clone(
+                &global_environment,
+            )))),
+            global_environment,
             expr_id_scope_depth: HashMap::new(),
         }
     }
+
+    pub fn add_expr_ids_depth(&mut self, mut map: HashMap<u64, u64>) {
+        map.drain().for_each(|(key, value)| {
+            self.expr_id_scope_depth.insert(key, value);
+        });
+    }
+
     pub fn environment(&self) -> Rc<RefCell<Environment>> {
-        Rc::clone(&self.environment)
+        Rc::clone(&self.local_environment)
     }
 
     pub fn interpret(&mut self, statements: &[Stmt]) {
@@ -63,14 +72,14 @@ impl Interpreter {
         let mut enclosing_environment = Rc::new(RefCell::new(enclosing_environment));
         // Ugly code where environment is swapped out to the new enclosed enviroment.
         // After statements are executed. I swap it back
-        std::mem::swap(&mut self.environment, &mut enclosing_environment);
+        std::mem::swap(&mut self.local_environment, &mut enclosing_environment);
 
         let results: Result<()> = statements
             .into_iter()
             .map(|stmt| self.execute(stmt))
             .collect();
 
-        std::mem::swap(&mut self.environment, &mut enclosing_environment);
+        std::mem::swap(&mut self.local_environment, &mut enclosing_environment);
 
         results
     }
@@ -218,18 +227,31 @@ impl expr::Visitor<Result<Object>> for Interpreter {
         Ok(Object::Nil)
     }
 
-    fn visit_variable_expr(&mut self, token: &Token, _: u64) -> Result<Object> {
-        self.environment
-            .borrow()
-            .get(token)
-            .map(|object| object.clone())
+    fn visit_variable_expr(&mut self, token: &Token, id: u64) -> Result<Object> {
+        let distance = self.expr_id_scope_depth.get(&id);
+
+        match distance {
+            Some(distance) => self.local_environment.borrow().get_at(token, *distance),
+            None => self.global_environment.borrow().get(token),
+        }
     }
 
-    fn visit_assign_expr(&mut self, token: &Token, expr: &Expr, _: u64) -> Result<Object> {
+    fn visit_assign_expr(&mut self, token: &Token, expr: &Expr, id: u64) -> Result<Object> {
         let object = self.evaluate(expr)?;
-        self.environment
-            .borrow_mut()
-            .assign(token, object.clone())?;
+
+        let distance = self.expr_id_scope_depth.get(&id);
+
+        match distance {
+            Some(distance) => {
+                self.local_environment
+                    .borrow_mut()
+                    .assign_at(token, object.clone(), *distance)?
+            }
+            None => self
+                .global_environment
+                .borrow_mut()
+                .assign(token, object.clone())?,
+        };
 
         Ok(object)
     }
@@ -286,7 +308,7 @@ impl expr::Visitor<Result<Object>> for Interpreter {
 
 impl stmt::Visitor<Result<()>> for Interpreter {
     fn visit_block_stmt(&mut self, statements: &[stmt::Stmt]) -> Result<()> {
-        let enclosed_enviroment = Environment::new_with_enclosing(Rc::clone(&self.environment));
+        let enclosed_enviroment = Environment::new_with_enclosing(self.environment());
         self.execute_block(statements, enclosed_enviroment)
     }
 
@@ -311,9 +333,8 @@ impl stmt::Visitor<Result<()>> for Interpreter {
             Some(Ok(x)) => Some(x),
             None => None,
         };
-        // let value = self.evaluate(expr)?;
 
-        self.environment
+        self.local_environment
             .borrow_mut()
             .define(token.lexeme.clone(), value);
 
@@ -346,18 +367,18 @@ impl stmt::Visitor<Result<()>> for Interpreter {
     }
 
     fn visit_function_stmt(&mut self, name: &Token, params: &[Token], body: &[Stmt]) -> Result<()> {
-        self.environment.borrow_mut().define(
+        self.local_environment.borrow_mut().define(
             name.lexeme.clone(),
             Some(Object::Call(Box::new(UserFunction::new(
                 Vec::from(params),
                 Vec::from(body),
-                Rc::clone(&self.environment),
+                self.environment(),
             )))),
         );
         Ok(())
     }
 
-    fn visit_return_stmt(&mut self, expr: &Expr) -> Result<()> {
+    fn visit_return_stmt(&mut self, token: &Token, expr: &Expr) -> Result<()> {
         let value = self.evaluate(expr)?;
         Err(LoxError::Return(value))
     }

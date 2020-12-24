@@ -12,15 +12,23 @@ pub enum VarState {
     Defined,
 }
 
+#[derive(Copy, Clone, PartialEq)]
+enum FunctionType {
+    None,
+    Function,
+}
+
 pub struct Resolver {
     scopes: Vec<HashMap<String, VarState>>,
     expr_id_scope_depth: HashMap<u64, u64>,
+    current_function: FunctionType,
 }
 impl Resolver {
     pub fn new() -> Self {
         Resolver {
             scopes: vec![HashMap::new()],
             expr_id_scope_depth: HashMap::new(),
+            current_function: FunctionType::None,
         }
     }
     pub fn run(mut self, statements: &[Stmt]) -> Result<HashMap<u64, u64>> {
@@ -49,17 +57,29 @@ impl Resolver {
     fn end_scope(&mut self) {
         self.scopes.pop();
     }
-    fn declare(&mut self, token: &Token) {
-        self.scopes
+    fn declare(&mut self, token: &Token) -> Result<()> {
+        let past_value = self
+            .scopes
             .iter_mut()
             .last()
             .and_then(|map| map.insert(token.lexeme.clone(), VarState::Declared));
+
+        // If there was some past value, it means that variable is being declared again
+        if let Some(_) = past_value {
+            return Err(LoxError::ResolverError(
+                token.clone(),
+                format!("Variable '{}' already declared", token.lexeme),
+            ));
+        }
+
+        Ok(())
     }
-    fn define(&mut self, token: &Token) {
+    fn define(&mut self, token: &Token) -> Result<()> {
         self.scopes
             .iter_mut()
             .last()
             .and_then(|map| map.insert(token.lexeme.clone(), VarState::Defined));
+        Ok(())
     }
 
     fn resolve_local(&mut self, token: &Token, expr_id: u64) {
@@ -75,14 +95,23 @@ impl Resolver {
                 .insert(expr_id, scope_size - 1 - found_index);
         }
     }
-    fn resolve_function(&mut self, params: &[Token], body: &[Stmt]) -> Result<()> {
+    fn resolve_function(
+        &mut self,
+        params: &[Token],
+        body: &[Stmt],
+        kind: FunctionType,
+    ) -> Result<()> {
+        let enclosing_function = self.current_function;
+        self.current_function = kind;
         self.begin_scope();
-        params.into_iter().for_each(|param| {
-            self.declare(param);
-            self.define(param);
-        });
+        params
+            .into_iter()
+            .map(|param| self.declare(param).and(self.define(param)))
+            .collect::<Result<()>>()?;
         self.resolve_stmts(body)?;
         self.end_scope();
+
+        self.current_function = enclosing_function;
         Ok(())
     }
 }
@@ -107,11 +136,11 @@ impl stmt::Visitor<Result<()>> for Resolver {
         token: &crate::token::Token,
         expr: Option<&expr::Expr>,
     ) -> Result<()> {
-        self.declare(token);
+        self.declare(token)?;
         if let Some(expr) = expr {
             self.resolve_expr(expr)?;
         }
-        self.define(token);
+        self.define(token)?;
         Ok(())
     }
 
@@ -142,13 +171,19 @@ impl stmt::Visitor<Result<()>> for Resolver {
         params: &[crate::token::Token],
         body: &[stmt::Stmt],
     ) -> Result<()> {
-        self.declare(token);
-        self.define(token);
-        self.resolve_function(params, body)?;
+        self.declare(token)?;
+        self.define(token)?;
+        self.resolve_function(params, body, FunctionType::Function)?;
         Ok(())
     }
 
-    fn visit_return_stmt(&mut self, expr: &expr::Expr) -> Result<()> {
+    fn visit_return_stmt(&mut self, token: &Token, expr: &expr::Expr) -> Result<()> {
+        if self.current_function == FunctionType::None {
+            return Err(LoxError::ResolverError(
+                token.clone(),
+                "Can't return on top-level code".to_string(),
+            ));
+        }
         self.resolve_expr(expr)
     }
 }
