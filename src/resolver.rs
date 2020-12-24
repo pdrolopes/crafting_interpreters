@@ -8,8 +8,39 @@ use std::collections::HashMap;
 
 #[derive(PartialEq)]
 pub enum VarState {
-    Declared,
-    Defined,
+    Declared { token: Token, has_been_read: bool },
+    Defined { token: Token, has_been_read: bool },
+}
+
+impl VarState {
+    fn is_declared(&self) -> bool {
+        matches!(self, VarState::Declared { .. })
+    }
+
+    fn is_defined(&self) -> bool {
+        matches!(self, VarState::Defined { .. })
+    }
+
+    fn token(&self) -> &Token {
+        match self {
+            VarState::Declared { token, .. } => token,
+            VarState::Defined { token, .. } => token,
+        }
+    }
+    fn has_been_read(&self) -> bool {
+        match self {
+            VarState::Declared { has_been_read, .. } => *has_been_read,
+            VarState::Defined { has_been_read, .. } => *has_been_read,
+        }
+    }
+    fn set_has_been_read(&mut self) {
+        let has_been_read = match self {
+            VarState::Declared { has_been_read, .. } | VarState::Defined { has_been_read, .. } => {
+                has_been_read
+            }
+        };
+        *has_been_read = true;
+    }
 }
 
 #[derive(Copy, Clone, PartialEq)]
@@ -33,6 +64,22 @@ impl Resolver {
     }
     pub fn run(mut self, statements: &[Stmt]) -> Result<HashMap<u64, u64>> {
         self.resolve_stmts(statements)?;
+
+        let unused_variable = self
+            .scopes
+            .iter()
+            .flat_map(|map| map.values())
+            .filter(|var_state| !var_state.has_been_read())
+            .map(|state| state.token())
+            .take(1)
+            .next();
+
+        if let Some(unused_token) = unused_variable {
+            return Err(LoxError::ResolverError(
+                unused_token.clone(),
+                format!("Variable '{}' declared and not used", unused_token.lexeme),
+            ));
+        }
         Ok(self.expr_id_scope_depth)
     }
     fn resolve_expr(&mut self, expr: &Expr) -> Result<()> {
@@ -58,11 +105,15 @@ impl Resolver {
         self.scopes.pop();
     }
     fn declare(&mut self, token: &Token) -> Result<()> {
-        let past_value = self
-            .scopes
-            .iter_mut()
-            .last()
-            .and_then(|map| map.insert(token.lexeme.clone(), VarState::Declared));
+        let past_value = self.scopes.iter_mut().last().and_then(|map| {
+            map.insert(
+                token.lexeme.clone(),
+                VarState::Declared {
+                    token: token.clone(),
+                    has_been_read: false,
+                },
+            )
+        });
 
         // If there was some past value, it means that variable is being declared again
         if let Some(_) = past_value {
@@ -75,10 +126,25 @@ impl Resolver {
         Ok(())
     }
     fn define(&mut self, token: &Token) -> Result<()> {
-        self.scopes
-            .iter_mut()
-            .last()
-            .and_then(|map| map.insert(token.lexeme.clone(), VarState::Defined));
+        self.scopes.iter_mut().last().map(|map| {
+            map.entry(token.lexeme.clone())
+                .and_modify(|entry| {
+                    if let VarState::Declared {
+                        has_been_read,
+                        token,
+                    } = entry
+                    {
+                        *entry = VarState::Defined {
+                            has_been_read: *has_been_read,
+                            token: token.clone(),
+                        };
+                    }
+                })
+                .or_insert(VarState::Defined {
+                    has_been_read: false,
+                    token: token.clone(),
+                });
+        });
         Ok(())
     }
 
@@ -244,14 +310,13 @@ impl expr::Visitor<Result<()>> for Resolver {
     }
 
     fn visit_variable_expr(&mut self, token: &crate::token::Token, id: u64) -> Result<()> {
-        if self
-            .scopes
-            .iter()
-            .last()
-            .and_then(|map| map.get(&token.lexeme.clone()))
-            .map(|state| *state == VarState::Declared)
-            .unwrap_or(false)
-        {
+        let var_state = self.scopes.last_mut().and_then(|map| {
+            map.entry(token.lexeme.clone())
+                .and_modify(VarState::set_has_been_read); // set variable as it has been read.
+            map.get(&token.lexeme)
+        });
+
+        if var_state.map(VarState::is_declared).unwrap_or(false) {
             return Err(LoxError::ResolverError(
                 token.clone(),
                 "Can't read local variable in its own initializer.".to_string(),

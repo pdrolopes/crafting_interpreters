@@ -1,4 +1,5 @@
 #![feature(peekable_next_if)]
+#![feature(hash_drain_filter)]
 
 pub mod ast_printer;
 mod environment;
