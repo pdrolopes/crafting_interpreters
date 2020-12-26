@@ -1,7 +1,10 @@
 use crate::lox_callable::Callable;
+use crate::lox_instance::LoxInstance;
 use core::fmt::Debug;
+use std::cell::RefCell;
 use std::cmp::PartialEq;
 use std::fmt::Display;
+use std::rc::Rc;
 
 #[derive(Debug, Clone)]
 pub enum Object {
@@ -9,6 +12,7 @@ pub enum Object {
     String(String),
     Number(f64),
     Call(Box<dyn Callable>),
+    ClassInstance(Rc<RefCell<LoxInstance>>),
     Nil,
 }
 impl Object {
@@ -40,6 +44,7 @@ impl Display for Object {
             Object::String(x) => write!(f, "{}", x),
             Object::Number(x) => write!(f, "{}", x),
             Object::Call(_) => write!(f, "function"),
+            Object::ClassInstance(x) => write!(f, "{}", x.borrow()),
             Object::Nil => write!(f, "nil"),
         }
     }

@@ -254,6 +254,10 @@ impl stmt::Visitor<Result<()>> for Resolver {
         }
         self.resolve_expr(expr)
     }
+
+    fn visit_class_stmt(&mut self, token: &Token, _methods: &[Stmt]) -> Result<()> {
+        self.declare(token).and(self.define(token))
+    }
 }
 impl expr::Visitor<Result<()>> for Resolver {
     fn visit_binary_expr(
@@ -348,5 +352,13 @@ impl expr::Visitor<Result<()>> for Resolver {
     fn visit_logic_and(&mut self, left: &expr::Expr, right: &expr::Expr) -> Result<()> {
         self.resolve_expr(left)?;
         self.resolve_expr(right)
+    }
+
+    fn visit_get_expr(&mut self, object: &Expr, property: &Token) -> Result<()> {
+        self.resolve_expr(object)
+    }
+
+    fn visit_set_expr(&mut self, object: &Expr, property: &Token, value: &Expr) -> Result<()> {
+        self.resolve_expr(object).and(self.resolve_expr(value))
     }
 }

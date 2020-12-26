@@ -7,6 +7,8 @@ pub enum Expr {
     Unary(Token, Box<Expr>),
     Conditional(Box<Expr>, Box<Expr>, Box<Expr>), // conditional - then - else,
     Call(Box<Expr>, Token, Vec<Expr>),
+    Get(Box<Expr>, Token), // Object and token name
+    Set(Box<Expr>, Token, Box<Expr>),
 
     // Variables
     Variable(Token, u64),
@@ -31,6 +33,10 @@ impl Expr {
             Expr::Unary(token, expr) => visitor.visit_unary_expr(token, expr.as_ref()),
             Expr::Call(callee, token, arguments) => {
                 visitor.visit_call_expr(callee, token, arguments)
+            }
+            Expr::Get(object, property_name) => visitor.visit_get_expr(object, property_name),
+            Expr::Set(object, property_name, value) => {
+                visitor.visit_set_expr(object, property_name, value)
             }
             Expr::Conditional(expr, then_branch, else_branch) => visitor.visit_conditional_expr(
                 expr.as_ref(),
@@ -63,4 +69,6 @@ pub trait Visitor<T> {
     fn visit_assign_expr(&mut self, token: &Token, expr: &Expr, id: u64) -> T;
     fn visit_logic_or(&mut self, left: &Expr, right: &Expr) -> T;
     fn visit_logic_and(&mut self, left: &Expr, right: &Expr) -> T;
+    fn visit_get_expr(&mut self, object: &Expr, property: &Token) -> T;
+    fn visit_set_expr(&mut self, object: &Expr, property: &Token, value: &Expr) -> T;
 }

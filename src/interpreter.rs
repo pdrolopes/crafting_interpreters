@@ -6,6 +6,7 @@ use crate::environment::Environment;
 use crate::error::{LoxError, Result};
 use crate::lox;
 use crate::lox_callable::Callable;
+use crate::lox_class::LoxClass;
 use crate::object::Object;
 use crate::token::Token;
 use crate::token_type::TokenType;
@@ -304,6 +305,40 @@ impl expr::Visitor<Result<Object>> for Interpreter {
         }
         callable.call(&arguments, self)
     }
+
+    fn visit_get_expr(&mut self, object: &Expr, property: &Token) -> Result<Object> {
+        let object = self.evaluate(object)?;
+
+        let instance = if let Object::ClassInstance(instance) = object {
+            instance
+        } else {
+            return Err(LoxError::RuntimeError(
+                property.clone(),
+                "Only instances have properties".to_string(),
+            ));
+        };
+
+        let value = instance.borrow().get(property);
+        value
+    }
+
+    fn visit_set_expr(&mut self, object: &Expr, property: &Token, value: &Expr) -> Result<Object> {
+        let object = self.evaluate(object)?;
+
+        let object = if let Object::ClassInstance(instance) = object {
+            dbg!(instance)
+        } else {
+            return Err(LoxError::RuntimeError(
+                property.clone(),
+                "Only instances have fields".to_string(),
+            ));
+        };
+
+        let value = self.evaluate(value)?;
+        object.borrow_mut().set(property.clone(), value.clone());
+
+        Ok(value)
+    }
 }
 
 impl stmt::Visitor<Result<()>> for Interpreter {
@@ -321,6 +356,7 @@ impl stmt::Visitor<Result<()>> for Interpreter {
     fn visit_print_stmt(&mut self, expr: &Expr) -> Result<()> {
         let value = self.evaluate(expr)?;
 
+        dbg!(&self.local_environment);
         println!("{}", value);
         Ok(())
     }
@@ -382,8 +418,19 @@ impl stmt::Visitor<Result<()>> for Interpreter {
         let value = self.evaluate(expr)?;
         Err(LoxError::Return(value))
     }
-}
 
+    fn visit_class_stmt(&mut self, token: &Token, methods: &[Stmt]) -> Result<()> {
+        self.local_environment
+            .borrow_mut()
+            .define(token.lexeme.clone(), None);
+        let class = LoxClass::new(token.clone(), vec![]);
+        self.local_environment
+            .borrow_mut()
+            .assign(token, Object::Call(Box::new(class)))?;
+
+        Ok(())
+    }
+}
 fn create_global_enviroment() -> Environment {
     let mut global_environment = Environment::new();
     global_environment.define(

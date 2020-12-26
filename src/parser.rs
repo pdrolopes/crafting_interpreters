@@ -63,29 +63,56 @@ impl<'a> Parser<'a> {
     }
 
     fn declaration(&mut self) -> Result<Stmt> {
-        let result = if self
+        let next_declaration_token = self
             .tokens_iter
-            .next_if(|token| token.kind == TokenType::Fun)
-            .is_some()
-        {
-            self.fun_declaration(FunctionKind::Function)
-        } else if self
-            .tokens_iter
-            .next_if(|token| token.kind == TokenType::Var)
-            .is_some()
-        {
-            self.var_declaration()
-        } else {
-            self.statement()
+            .next_if(|token| {
+                matches!(
+                    token.kind,
+                    TokenType::Fun | TokenType::Var | TokenType::Class
+                )
+            })
+            .map(|t| &t.kind);
+
+        let result = match next_declaration_token {
+            Some(TokenType::Fun) => self.fun_declaration(FunctionKind::Function),
+            Some(TokenType::Var) => self.var_declaration(),
+            Some(TokenType::Class) => self.class_declaration(),
+            _ => self.statement(),
         };
 
-        match result {
-            Err(err) => {
-                self.synchronize(); // walk until ;
-                Err(err)
-            }
-            x => x,
+        if result.is_err() {
+            self.synchronize(); // walk until ;
         }
+
+        result
+    }
+
+    fn class_declaration(&mut self) -> Result<Stmt> {
+        let class_name = self
+            .consume(TokenType::Identifier, "expected class name")?
+            .clone();
+        self.consume(TokenType::LeftBrace, "Expected '{' after class name")?;
+
+        let mut methods = vec![];
+
+        while self
+            .tokens_iter
+            .peek()
+            .map(|t| t.kind != TokenType::RightBrace)
+            .unwrap_or(false)
+        {
+            methods.push(self.fun_declaration(FunctionKind::Method)?)
+        }
+
+        self.consume(
+            TokenType::RightBrace,
+            "Expected '}' at the end of class block",
+        )?;
+
+        Ok(Stmt::Class {
+            token: class_name,
+            methods,
+        })
     }
 
     fn fun_declaration(&mut self, kind: FunctionKind) -> Result<Stmt> {
@@ -378,6 +405,8 @@ impl<'a> Parser<'a> {
 
             if let Expr::Variable(token, _) = expr {
                 return Ok(Expr::Assign(token, Box::new(value), get_next_id()));
+            } else if let Expr::Get(object, field) = expr {
+                return Ok(Expr::Set(object, field, Box::new(value)));
             }
 
             error(equals.clone(), "Invalid assignment target");
@@ -534,6 +563,13 @@ impl<'a> Parser<'a> {
                 .is_some()
             {
                 expr = self.finish_call(expr)?;
+            } else if self
+                .tokens_iter
+                .next_if(|t| t.kind == TokenType::Dot)
+                .is_some()
+            {
+                let name = self.consume(TokenType::Identifier, "Expect property name after '.'")?;
+                expr = Expr::Get(Box::new(expr), name.clone());
             } else {
                 break;
             }

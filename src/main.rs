@@ -8,6 +8,8 @@ mod expr;
 mod interpreter;
 mod lox;
 pub mod lox_callable;
+pub mod lox_class;
+pub mod lox_instance;
 mod object;
 pub mod parser;
 pub mod resolver;
@@ -15,6 +17,8 @@ mod scanner;
 mod stmt;
 pub mod token;
 pub mod token_type;
+
+pub use object::Object;
 
 use std::env;
 fn main() {
