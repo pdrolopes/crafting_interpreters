@@ -65,23 +65,23 @@ impl Visitor<String> for ASTPrinter {
         todo!()
     }
 
-    fn visit_logic_or(&mut self, left: &Expr, right: &Expr) -> String {
+    fn visit_logic_or(&mut self, _left: &Expr, _right: &Expr) -> String {
         todo!()
     }
 
-    fn visit_logic_and(&mut self, left: &Expr, right: &Expr) -> String {
+    fn visit_logic_and(&mut self, _left: &Expr, _right: &Expr) -> String {
         todo!()
     }
 
-    fn visit_call_expr(&mut self, callee: &Expr, token: &Token, args: &[Expr]) -> String {
+    fn visit_call_expr(&mut self, _callee: &Expr, _token: &Token, _args: &[Expr]) -> String {
         todo!()
     }
 
-    fn visit_get_expr(&mut self, object: &Expr, property: &Token) -> String {
+    fn visit_get_expr(&mut self, _object: &Expr, _property: &Token) -> String {
         todo!()
     }
 
-    fn visit_set_expr(&mut self, object: &Expr, property: &Token, value: &Expr) -> String {
+    fn visit_set_expr(&mut self, _object: &Expr, _property: &Token, _value: &Expr) -> String {
         todo!()
     }
 }
@@ -133,38 +133,38 @@ impl Visitor<String> for RPNPrinter {
 
     fn visit_conditional_expr(
         &mut self,
-        cond: &Expr,
-        then_branch: &Expr,
-        else_branch: &Expr,
+        _cond: &Expr,
+        _then_branch: &Expr,
+        _else_branch: &Expr,
     ) -> String {
         todo!()
     }
 
-    fn visit_variable_expr(&mut self, token: &Token, _: u64) -> String {
+    fn visit_variable_expr(&mut self, _token: &Token, _: u64) -> String {
         todo!()
     }
 
-    fn visit_assign_expr(&mut self, token: &Token, expr: &Expr, _: u64) -> String {
+    fn visit_assign_expr(&mut self, _token: &Token, _expr: &Expr, _: u64) -> String {
         todo!()
     }
 
-    fn visit_logic_or(&mut self, left: &Expr, right: &Expr) -> String {
+    fn visit_logic_or(&mut self, _left: &Expr, _right: &Expr) -> String {
         todo!()
     }
 
-    fn visit_logic_and(&mut self, left: &Expr, right: &Expr) -> String {
+    fn visit_logic_and(&mut self, _left: &Expr, _right: &Expr) -> String {
         todo!()
     }
 
-    fn visit_call_expr(&mut self, callee: &Expr, token: &Token, args: &[Expr]) -> String {
+    fn visit_call_expr(&mut self, _callee: &Expr, _token: &Token, _args: &[Expr]) -> String {
         todo!()
     }
 
-    fn visit_get_expr(&mut self, object: &Expr, property: &Token) -> String {
+    fn visit_get_expr(&mut self, _object: &Expr, _property: &Token) -> String {
         todo!()
     }
 
-    fn visit_set_expr(&mut self, object: &Expr, property: &Token, value: &Expr) -> String {
+    fn visit_set_expr(&mut self, _object: &Expr, _property: &Token, _value: &Expr) -> String {
         todo!()
     }
 }

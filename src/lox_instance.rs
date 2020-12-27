@@ -1,10 +1,6 @@
-use crate::environment::Environment;
 use crate::error::LoxError;
 use crate::error::Result;
-use crate::interpreter::Interpreter;
-use crate::lox_callable::Callable;
 use crate::lox_class::LoxClass;
-use crate::stmt::Stmt;
 use crate::token::Token;
 use crate::Object;
 use std::collections::HashMap;
@@ -25,12 +21,16 @@ impl LoxInstance {
     }
 
     pub fn get(&self, token: &Token) -> Result<Object> {
-        self.fields.get(&token.lexeme).cloned().ok_or_else(|| {
-            LoxError::RuntimeError(
-                token.clone(),
-                format!("Undefined property '{}'", token.lexeme),
-            )
-        })
+        self.fields
+            .get(&token.lexeme)
+            .cloned()
+            .or_else(|| self.class.find_method(&token.lexeme))
+            .ok_or_else(|| {
+                LoxError::RuntimeError(
+                    token.clone(),
+                    format!("Undefined property '{}'", token.lexeme),
+                )
+            })
     }
     pub fn set(&mut self, token: Token, value: Object) {
         self.fields.insert(token.lexeme, value);

@@ -1,7 +1,7 @@
 use super::expr;
 use super::expr::Expr;
 use super::stmt;
-use super::stmt::Stmt;
+use super::stmt::{Function, Stmt};
 use crate::environment::Environment;
 use crate::error::{LoxError, Result};
 use crate::lox;
@@ -53,7 +53,7 @@ impl Interpreter {
 
     pub fn print(&mut self, statement: &Stmt) {
         if let Stmt::Expression(x) = statement {
-            stmt::Visitor::visit_print_stmt(self, x);
+            stmt::Visitor::visit_print_stmt(self, x).unwrap();
         }
     }
 
@@ -326,7 +326,7 @@ impl expr::Visitor<Result<Object>> for Interpreter {
         let object = self.evaluate(object)?;
 
         let object = if let Object::ClassInstance(instance) = object {
-            dbg!(instance)
+            instance
         } else {
             return Err(LoxError::RuntimeError(
                 property.clone(),
@@ -356,7 +356,6 @@ impl stmt::Visitor<Result<()>> for Interpreter {
     fn visit_print_stmt(&mut self, expr: &Expr) -> Result<()> {
         let value = self.evaluate(expr)?;
 
-        dbg!(&self.local_environment);
         println!("{}", value);
         Ok(())
     }
@@ -414,16 +413,27 @@ impl stmt::Visitor<Result<()>> for Interpreter {
         Ok(())
     }
 
-    fn visit_return_stmt(&mut self, token: &Token, expr: &Expr) -> Result<()> {
+    fn visit_return_stmt(&mut self, _token: &Token, expr: &Expr) -> Result<()> {
         let value = self.evaluate(expr)?;
         Err(LoxError::Return(value))
     }
 
-    fn visit_class_stmt(&mut self, token: &Token, methods: &[Stmt]) -> Result<()> {
+    fn visit_class_stmt(&mut self, token: &Token, methods: &[Function]) -> Result<()> {
         self.local_environment
             .borrow_mut()
             .define(token.lexeme.clone(), None);
-        let class = LoxClass::new(token.clone(), vec![]);
+
+        let methods: HashMap<String, UserFunction> = methods
+            .into_iter()
+            .cloned()
+            .map(|function| {
+                (
+                    function.0.lexeme.clone(),
+                    UserFunction::new(function.1, function.2, Rc::clone(&self.local_environment)),
+                )
+            })
+            .collect();
+        let class = LoxClass::new(token.clone(), methods);
         self.local_environment
             .borrow_mut()
             .assign(token, Object::Call(Box::new(class)))?;
@@ -460,7 +470,7 @@ impl Callable for ClockFunction {
 }
 
 #[derive(Clone, Debug)]
-struct UserFunction {
+pub struct UserFunction {
     params: Vec<Token>,
     body: Vec<Stmt>,
     closure: Rc<RefCell<Environment>>,

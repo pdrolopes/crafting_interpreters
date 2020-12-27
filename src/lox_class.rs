@@ -1,28 +1,34 @@
-use crate::environment::Environment;
 use crate::error::Result;
 use crate::interpreter::Interpreter;
+use crate::interpreter::UserFunction;
 use crate::lox_callable::Callable;
 use crate::lox_instance::LoxInstance;
 use crate::object::Object;
-use crate::stmt::Stmt;
 use crate::token::Token;
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::rc::Rc;
 
-type Function = (Token, Vec<Token>, Vec<Stmt>);
 #[derive(Clone, Debug)]
 pub struct LoxClass {
     name: Token,
-    methods: Vec<Function>,
+    methods: HashMap<String, UserFunction>,
 }
 
 impl LoxClass {
-    pub fn new(name: Token, methods: Vec<Function>) -> Self {
+    pub fn new(name: Token, methods: HashMap<String, UserFunction>) -> Self {
         Self { name, methods }
     }
 
     pub fn name(&self) -> &str {
         &self.name.lexeme
+    }
+
+    pub fn find_method(&self, name: &str) -> Option<Object> {
+        self.methods
+            .get(name)
+            .cloned()
+            .map(|m| Object::Call(Box::new(m)))
     }
 }
 impl Callable for LoxClass {
@@ -30,7 +36,7 @@ impl Callable for LoxClass {
         0
     }
 
-    fn call(&self, arguments: &[Object], interpreter: &mut Interpreter) -> Result<Object> {
+    fn call(&self, _arguments: &[Object], _interpreter: &mut Interpreter) -> Result<Object> {
         Ok(Object::ClassInstance(Rc::new(RefCell::new(
             LoxInstance::new(self.clone()),
         ))))

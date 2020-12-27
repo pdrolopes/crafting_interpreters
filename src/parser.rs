@@ -2,16 +2,16 @@ use super::error;
 use super::error::{LoxError, Result};
 use super::expr::Expr;
 use super::lox;
+use super::stmt::{Function, Stmt};
 use super::token::Token;
 use super::token_type::TokenType;
-use crate::stmt::Stmt;
 use std::iter::Peekable;
 use std::slice::Iter;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-static current_expr_id: AtomicU64 = AtomicU64::new(1);
+static CURRENT_EXPR_ID: AtomicU64 = AtomicU64::new(1);
 fn get_next_id() -> u64 {
-    current_expr_id.fetch_add(1, Ordering::Relaxed)
+    CURRENT_EXPR_ID.fetch_add(1, Ordering::Relaxed)
 }
 
 const MAX_FUN_ARGUMENTS: usize = 255;
@@ -74,7 +74,9 @@ impl<'a> Parser<'a> {
             .map(|t| &t.kind);
 
         let result = match next_declaration_token {
-            Some(TokenType::Fun) => self.fun_declaration(FunctionKind::Function),
+            Some(TokenType::Fun) => self
+                .fun_declaration(FunctionKind::Function)
+                .map(|(token, body, parameters)| Stmt::Function(token, body, parameters)),
             Some(TokenType::Var) => self.var_declaration(),
             Some(TokenType::Class) => self.class_declaration(),
             _ => self.statement(),
@@ -115,7 +117,7 @@ impl<'a> Parser<'a> {
         })
     }
 
-    fn fun_declaration(&mut self, kind: FunctionKind) -> Result<Stmt> {
+    fn fun_declaration(&mut self, kind: FunctionKind) -> Result<Function> {
         let token_name = self
             .consume(TokenType::Identifier, &format!("Expected {:?} name", kind))?
             .clone();
@@ -167,7 +169,7 @@ impl<'a> Parser<'a> {
             x => vec![x],
         };
 
-        Ok(Stmt::Function(token_name, parameters, body))
+        Ok((token_name, parameters, body))
     }
 
     fn var_declaration(&mut self) -> Result<Stmt> {
@@ -266,12 +268,12 @@ impl<'a> Parser<'a> {
     fn expr_stmt(&mut self) -> Result<Stmt> {
         let expr = self.expression()?;
 
-        let next_token_is_EOF = self
+        let next_token_is_eof = self
             .tokens_iter
             .peek()
             .map(|token| matches!(token.kind, TokenType::Eof))
             .unwrap_or(false);
-        if self.allow_only_expression && next_token_is_EOF {
+        if self.allow_only_expression && next_token_is_eof {
             self.found_only_expr = true;
             return Ok(Stmt::Expression(expr));
         } else {

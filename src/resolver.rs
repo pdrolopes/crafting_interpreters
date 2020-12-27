@@ -1,7 +1,7 @@
 use super::expr;
 use super::expr::Expr;
 use super::stmt;
-use super::stmt::Stmt;
+use super::stmt::{Function, Stmt};
 use super::token::Token;
 use crate::error::{LoxError, Result};
 use std::collections::HashMap;
@@ -16,10 +16,6 @@ pub enum VarState {
 impl VarState {
     fn is_declared(&self) -> bool {
         matches!(self, VarState::Declared { .. })
-    }
-
-    fn is_defined(&self) -> bool {
-        matches!(self, VarState::Defined { .. })
     }
 
     fn is_read(&self) -> bool {
@@ -47,6 +43,7 @@ impl VarState {
 enum FunctionType {
     None,
     Function,
+    Method,
 }
 
 pub struct Resolver {
@@ -255,8 +252,19 @@ impl stmt::Visitor<Result<()>> for Resolver {
         self.resolve_expr(expr)
     }
 
-    fn visit_class_stmt(&mut self, token: &Token, _methods: &[Stmt]) -> Result<()> {
-        self.declare(token).and(self.define(token))
+    fn visit_class_stmt(&mut self, token: &Token, methods: &[Function]) -> Result<()> {
+        self.declare(token).and(self.define(token)).and(
+            methods
+                .into_iter()
+                .map(|(_, parameters, body)| {
+                    self.resolve_function(
+                        parameters.as_slice(),
+                        body.as_slice(),
+                        FunctionType::Method,
+                    )
+                })
+                .collect::<Result<()>>(),
+        )
     }
 }
 impl expr::Visitor<Result<()>> for Resolver {
@@ -354,11 +362,11 @@ impl expr::Visitor<Result<()>> for Resolver {
         self.resolve_expr(right)
     }
 
-    fn visit_get_expr(&mut self, object: &Expr, property: &Token) -> Result<()> {
+    fn visit_get_expr(&mut self, object: &Expr, _property: &Token) -> Result<()> {
         self.resolve_expr(object)
     }
 
-    fn visit_set_expr(&mut self, object: &Expr, property: &Token, value: &Expr) -> Result<()> {
+    fn visit_set_expr(&mut self, object: &Expr, _property: &Token, value: &Expr) -> Result<()> {
         self.resolve_expr(object).and(self.resolve_expr(value))
     }
 }

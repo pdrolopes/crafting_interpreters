@@ -1,6 +1,8 @@
 use crate::expr::Expr;
 use crate::token::Token;
 
+pub type Function = (Token, Vec<Token>, Vec<Stmt>);
+
 #[derive(Debug, Clone)]
 pub enum Stmt {
     Block(Vec<Stmt>),
@@ -11,7 +13,10 @@ pub enum Stmt {
     Function(Token, Vec<Token>, Vec<Stmt>),
     While(Expr, Box<Stmt>),
     Return(Token, Expr),
-    Class { token: Token, methods: Vec<Stmt> },
+    Class {
+        token: Token,
+        methods: Vec<Function>,
+    },
 }
 
 impl Stmt {
@@ -43,5 +48,5 @@ pub trait Visitor<T> {
     fn visit_while_stmt(&mut self, cond: &Expr, block: &Stmt) -> T;
     fn visit_function_stmt(&mut self, name: &Token, params: &[Token], body: &[Stmt]) -> T;
     fn visit_return_stmt(&mut self, token: &Token, expr: &Expr) -> T;
-    fn visit_class_stmt(&mut self, token: &Token, methods: &[Stmt]) -> T;
+    fn visit_class_stmt(&mut self, token: &Token, methods: &[Function]) -> T;
 }
