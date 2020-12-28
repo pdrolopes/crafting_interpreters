@@ -30,12 +30,20 @@ impl LoxClass {
 }
 impl Callable for LoxClass {
     fn arity(&self) -> usize {
-        0
+        self.find_method("init")
+            .map(|method| method.arity())
+            .unwrap_or(0)
     }
 
-    fn call(&self, _arguments: &[Object], _interpreter: &mut Interpreter) -> Result<Object> {
-        Ok(Object::ClassInstance(Rc::new(RefCell::new(
-            LoxInstance::new(self.clone()),
-        ))))
+    fn call(&self, arguments: &[Object], interpreter: &mut Interpreter) -> Result<Object> {
+        let instance = Rc::new(RefCell::new(LoxInstance::new(self.clone())));
+
+        self.find_method("init").map(|method| {
+            method
+                .bind(Rc::clone(&instance))
+                .call(arguments, interpreter)
+        });
+
+        Ok(Object::ClassInstance(instance))
     }
 }

@@ -414,6 +414,7 @@ impl stmt::Visitor<Result<()>> for Interpreter {
                 Vec::from(params),
                 Vec::from(body),
                 self.environment(),
+                false,
             )))),
         );
         Ok(())
@@ -435,7 +436,12 @@ impl stmt::Visitor<Result<()>> for Interpreter {
             .map(|function| {
                 (
                     function.0.lexeme.clone(),
-                    UserFunction::new(function.1, function.2, Rc::clone(&self.local_environment)),
+                    UserFunction::new(
+                        function.1,
+                        function.2,
+                        Rc::clone(&self.local_environment),
+                        function.0.lexeme == "init",
+                    ),
                 )
             })
             .collect();
@@ -480,13 +486,20 @@ pub struct UserFunction {
     params: Vec<Token>,
     body: Vec<Stmt>,
     closure: Rc<RefCell<Environment>>,
+    is_initializer: bool,
 }
 impl UserFunction {
-    pub fn new(params: Vec<Token>, body: Vec<Stmt>, environment: Rc<RefCell<Environment>>) -> Self {
+    pub fn new(
+        params: Vec<Token>,
+        body: Vec<Stmt>,
+        environment: Rc<RefCell<Environment>>,
+        is_initializer: bool,
+    ) -> Self {
         UserFunction {
             params,
             body,
             closure: environment,
+            is_initializer,
         }
     }
     pub fn bind(&self, instance: Rc<RefCell<LoxInstance>>) -> UserFunction {
@@ -496,7 +509,12 @@ impl UserFunction {
             Some(Object::ClassInstance(Rc::clone(&instance))),
         );
         let enviroment = Rc::new(RefCell::new(enviroment));
-        UserFunction::new(self.params.clone(), self.body.clone(), enviroment)
+        UserFunction::new(
+            self.params.clone(),
+            self.body.clone(),
+            enviroment,
+            self.is_initializer,
+        )
     }
 }
 impl Callable for UserFunction {
@@ -518,8 +536,17 @@ impl Callable for UserFunction {
 
         match result {
             Ok(()) => Ok(Object::Nil),
-            Err(LoxError::Return(value)) => Ok(value),
+            Err(LoxError::Return(value)) => {
+                if self.is_initializer {
+                    self.closure.borrow().get_at(&this_token(), 0)
+                } else {
+                    Ok(value)
+                }
+            }
             Err(x) => Err(x),
         }
     }
+}
+fn this_token() -> Token {
+    Token::new(TokenType::This, "this".to_string(), 0)
 }

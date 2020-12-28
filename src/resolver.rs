@@ -44,6 +44,7 @@ impl VarState {
 enum FunctionType {
     None,
     Function,
+    Initializer,
     Method,
 }
 
@@ -258,7 +259,7 @@ impl stmt::Visitor<Result<()>> for Resolver {
         self.declare(token).and(self.define(token)).and(
             methods
                 .into_iter()
-                .map(|(_, parameters, body)| {
+                .map(|(token, parameters, body)| {
                     self.begin_scope();
                     self.scopes.last_mut().map(|scope| {
                         scope.insert(
@@ -268,10 +269,13 @@ impl stmt::Visitor<Result<()>> for Resolver {
                             },
                         )
                     });
+                    let function_type = (token.lexeme == "init")
+                        .then(|| FunctionType::Initializer)
+                        .unwrap_or(FunctionType::Method);
                     let result = self.resolve_function(
                         parameters.as_slice(),
                         body.as_slice(),
-                        FunctionType::Method,
+                        function_type,
                     );
                     self.end_scope();
                     result
