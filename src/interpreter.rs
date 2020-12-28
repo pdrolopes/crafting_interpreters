@@ -7,6 +7,7 @@ use crate::error::{LoxError, Result};
 use crate::lox;
 use crate::lox_callable::Callable;
 use crate::lox_class::LoxClass;
+use crate::lox_instance::LoxInstance;
 use crate::object::Object;
 use crate::token::Token;
 use crate::token_type::TokenType;
@@ -318,7 +319,7 @@ impl expr::Visitor<Result<Object>> for Interpreter {
             ));
         };
 
-        let value = instance.borrow().get(property);
+        let value = LoxInstance::get(instance, property);
         value
     }
 
@@ -338,6 +339,11 @@ impl expr::Visitor<Result<Object>> for Interpreter {
         object.borrow_mut().set(property.clone(), value.clone());
 
         Ok(value)
+    }
+
+    fn visit_this_expr(&mut self, token: &Token, id: u64) -> Result<Object> {
+        let distance = self.expr_id_scope_depth.get(&id).unwrap(); //there is always an id for `this` expressions
+        self.local_environment.borrow_mut().get_at(token, *distance)
     }
 }
 
@@ -482,6 +488,15 @@ impl UserFunction {
             body,
             closure: environment,
         }
+    }
+    pub fn bind(&self, instance: Rc<RefCell<LoxInstance>>) -> UserFunction {
+        let mut enviroment = Environment::new_with_enclosing(Rc::clone(&self.closure));
+        enviroment.define(
+            "this".to_string(),
+            Some(Object::ClassInstance(Rc::clone(&instance))),
+        );
+        let enviroment = Rc::new(RefCell::new(enviroment));
+        UserFunction::new(self.params.clone(), self.body.clone(), enviroment)
     }
 }
 impl Callable for UserFunction {

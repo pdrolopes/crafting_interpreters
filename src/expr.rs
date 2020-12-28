@@ -9,6 +9,7 @@ pub enum Expr {
     Call(Box<Expr>, Token, Vec<Expr>),
     Get(Box<Expr>, Token), // Object and token name
     Set(Box<Expr>, Token, Box<Expr>),
+    This(Token, u64),
 
     // Variables
     Variable(Token, u64),
@@ -51,6 +52,7 @@ impl Expr {
             Expr::Assign(token, expr, id) => visitor.visit_assign_expr(token, expr, *id),
             Expr::LogicOr(left, right) => visitor.visit_logic_or(left, right),
             Expr::LogicAnd(left, right) => visitor.visit_logic_and(left, right),
+            Expr::This(token, id) => visitor.visit_this_expr(token, *id),
         }
     }
 }
@@ -71,4 +73,5 @@ pub trait Visitor<T> {
     fn visit_logic_and(&mut self, left: &Expr, right: &Expr) -> T;
     fn visit_get_expr(&mut self, object: &Expr, property: &Token) -> T;
     fn visit_set_expr(&mut self, object: &Expr, property: &Token, value: &Expr) -> T;
+    fn visit_this_expr(&mut self, token: &Token, id: u64) -> T;
 }

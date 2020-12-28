@@ -30,7 +30,7 @@ fn main() {
             lox::run_prompt();
         }
         2 => {
-            lox::run_file(args.last().unwrap()).unwrap();
+            lox::run_file(args.last().unwrap());
         }
         _ => {
             println!("Usage: jlox [script]");

@@ -4,6 +4,7 @@ use super::stmt;
 use super::stmt::{Function, Stmt};
 use super::token::Token;
 use crate::error::{LoxError, Result};
+use crate::token_type::TokenType;
 use std::collections::HashMap;
 
 #[derive(PartialEq, Debug)]
@@ -169,6 +170,7 @@ impl Resolver {
         let enclosing_function = self.current_function;
         self.current_function = kind;
         self.begin_scope();
+
         params
             .into_iter()
             .map(|param| self.declare(param).and(self.define(param)))
@@ -257,11 +259,22 @@ impl stmt::Visitor<Result<()>> for Resolver {
             methods
                 .into_iter()
                 .map(|(_, parameters, body)| {
-                    self.resolve_function(
+                    self.begin_scope();
+                    self.scopes.last_mut().map(|scope| {
+                        scope.insert(
+                            "this".to_string(),
+                            VarState::Defined {
+                                token: Token::new(TokenType::This, "this".to_string(), 0),
+                            },
+                        )
+                    });
+                    let result = self.resolve_function(
                         parameters.as_slice(),
                         body.as_slice(),
                         FunctionType::Method,
-                    )
+                    );
+                    self.end_scope();
+                    result
                 })
                 .collect::<Result<()>>(),
         )
@@ -368,5 +381,16 @@ impl expr::Visitor<Result<()>> for Resolver {
 
     fn visit_set_expr(&mut self, object: &Expr, _property: &Token, value: &Expr) -> Result<()> {
         self.resolve_expr(object).and(self.resolve_expr(value))
+    }
+
+    fn visit_this_expr(&mut self, token: &Token, id: u64) -> Result<()> {
+        if self.current_function != FunctionType::Method {
+            return Err(LoxError::ResolverError(
+                token.clone(),
+                "Can't use 'this' outside of class methods".to_string(),
+            ));
+        }
+        self.resolve_local(token, id, false);
+        Ok(())
     }
 }

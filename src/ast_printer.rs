@@ -84,6 +84,10 @@ impl Visitor<String> for ASTPrinter {
     fn visit_set_expr(&mut self, _object: &Expr, _property: &Token, _value: &Expr) -> String {
         todo!()
     }
+
+    fn visit_this_expr(&mut self, token: &Token, _id: u64) -> String {
+        todo!()
+    }
 }
 
 // --- Reverse Polish Notation ---
@@ -165,6 +169,10 @@ impl Visitor<String> for RPNPrinter {
     }
 
     fn visit_set_expr(&mut self, _object: &Expr, _property: &Token, _value: &Expr) -> String {
+        todo!()
+    }
+
+    fn visit_this_expr(&mut self, token: &Token, _id: u64) -> String {
         todo!()
     }
 }

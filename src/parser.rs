@@ -619,6 +619,7 @@ impl<'a> Parser<'a> {
                 TokenType::False => Ok(Expr::Boolean(false)),
                 TokenType::True => Ok(Expr::Boolean(true)),
                 TokenType::Nil => Ok(Expr::Nil),
+                TokenType::This => Ok(Expr::This(token.clone(), get_next_id())),
                 TokenType::Number(value) => Ok(Expr::Number(*value)),
                 TokenType::String(value) => Ok(Expr::String(value.to_string())),
                 TokenType::Identifier => Ok(Expr::Variable(token.clone(), get_next_id())),

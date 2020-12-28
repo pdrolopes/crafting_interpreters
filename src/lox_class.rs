@@ -24,11 +24,8 @@ impl LoxClass {
         &self.name.lexeme
     }
 
-    pub fn find_method(&self, name: &str) -> Option<Object> {
-        self.methods
-            .get(name)
-            .cloned()
-            .map(|m| Object::Call(Box::new(m)))
+    pub fn find_method(&self, name: &str) -> Option<UserFunction> {
+        self.methods.get(name).cloned()
     }
 }
 impl Callable for LoxClass {
